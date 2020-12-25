@@ -1,3 +1,4 @@
+import random
 import sys
 import pygame
 
@@ -36,6 +37,34 @@ class Board:
     audio_triple = pygame.mixer.Sound('audio/triple.wav')
     audio_tetris = pygame.mixer.Sound('audio/tetris.wav')
 
+    sprite_single_I = pygame.sprite.Sprite()
+    surface_single_I = pygame.image.load('res/single/singleI.png').convert_alpha()
+    sprite_single_I.image = pygame.transform.scale(surface_single_I, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+    sprite_single_J = pygame.sprite.Sprite()
+    surface_single_J = pygame.image.load('res/single/singleJ.png').convert_alpha()
+    sprite_single_J.image = pygame.transform.scale(surface_single_J, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+    sprite_single_L = pygame.sprite.Sprite()
+    surface_single_L = pygame.image.load('res/single/singleL.png').convert_alpha()
+    sprite_single_L.image = pygame.transform.scale(surface_single_L, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+    sprite_single_O = pygame.sprite.Sprite()
+    surface_single_O = pygame.image.load('res/single/singleO.png').convert_alpha()
+    sprite_single_O.image = pygame.transform.scale(surface_single_O, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+    sprite_single_S = pygame.sprite.Sprite()
+    surface_single_S = pygame.image.load('res/single/singleS.png').convert_alpha()
+    sprite_single_S.image = pygame.transform.scale(surface_single_S, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+    sprite_single_T = pygame.sprite.Sprite()
+    surface_single_T = pygame.image.load('res/single/singleT.png').convert_alpha()
+    sprite_single_T.image = pygame.transform.scale(surface_single_T, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+    sprite_single_Z = pygame.sprite.Sprite()
+    surface_single_Z = pygame.image.load('res/single/singleZ.png').convert_alpha()
+    sprite_single_Z.image = pygame.transform.scale(surface_single_Z, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
     def __init__(self, side_length, topleft):
         self.board = list()
         self.init_board()
@@ -52,9 +81,29 @@ class Board:
     def draw_board(self):
         for i in range(len(self.board)):
             for j in range(len(self.board[i])):
-                pygame.draw.rect(screen, (119, 136, 153),
-                                 (self.topleft_x + self.side_length * j, self.topleft_y + self.side_length * i,
-                                  self.side_length, self.side_length), 1 if self.board[i][j] == 0 else 0)
+                if self.board[i][j] == 0:
+                    pygame.draw.rect(screen, (119, 136, 153),
+                                     (self.topleft_x + self.side_length * j, self.topleft_y + self.side_length * i,
+                                      self.side_length, self.side_length), 1)
+                else:
+                    screen.blit(self.get_block(self.board[i][j]),
+                                (self.topleft_x + self.side_length * j, self.topleft_y + self.side_length * i))
+
+    def get_block(self, i):
+        if i == Constants.I:
+            return self.sprite_single_I.image
+        elif i == Constants.J:
+            return self.sprite_single_J.image
+        elif i == Constants.L:
+            return self.sprite_single_L.image
+        elif i == Constants.O:
+            return self.sprite_single_O.image
+        elif i == Constants.S:
+            return self.sprite_single_S.image
+        elif i == Constants.T:
+            return self.sprite_single_T.image
+        elif i == Constants.Z:
+            return self.sprite_single_Z.image
 
     def get_line(self, position, length, height):
         try:
@@ -62,10 +111,17 @@ class Board:
         except IndexError:
             return [1 for _ in range(length)]
 
+    def check_under(self, position, under):
+        for i in range(len(under)):
+            if self.board[position[1] + under[i]][position[0] + i] != 0:
+                return False
+        return True
+
     def anchor_block(self, position, block_pattern):
         for i in range(len(block_pattern)):
             for j in range(len(block_pattern[i])):
-                self.board[position[1] + i][position[0] + j] = block_pattern[i][j]
+                if block_pattern[i][j] != -1:
+                    self.board[position[1] + i][position[0] + j] = block_pattern[i][j]
         self.check_lines()
 
     def check_lines(self):
@@ -182,11 +238,16 @@ class Block:
         self.audio_hard_drop.play()
         self.anchor()
 
+    def anchor(self):
+        board.anchor_block(self.position, self.get_pattern())
+        global current_block
+        current_block = None
+
     def check_bottom(self):
         pass
 
-    def anchor(self):
-        pass
+    def get_pattern(self):
+        return list()
 
 
 class BlockI(Block):
@@ -223,15 +284,13 @@ class BlockI(Block):
 
     def check_bottom(self):
         if self.status == 0:
-            if self.position[1] >= Constants.BOARD_SIZE[1] - 4:
-                return False
             length = 1
             height = 4
         else:
-            if self.position[1] >= Constants.BOARD_SIZE[1] - 1:
-                return False
             length = 4
             height = 1
+        if self.position[1] >= Constants.BOARD_SIZE[1] - height:
+            return False
         if sum(board.get_line(self.position, length, height)) == 0:
             return True
         return False
@@ -245,33 +304,29 @@ class BlockI(Block):
         else:
             return [[Constants.I, Constants.I, Constants.I, Constants.I]]
 
-    def anchor(self):
-        board.anchor_block(self.position, self.get_pattern())
-        global current_block
-        current_block = None
-
 
 class BlockJ(Block):
     def __init__(self):
         super().__init__()
+        self.position = [4, 0]
         self.sprite = self.sprite_J
 
     def rotate(self):
-        if self.status in (1, 3):
-            if self.position[0] == Constants.BOARD_SIZE[0] - 2:
-                self.position[0] = Constants.BOARD_SIZE[0] - 3
-
+        if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
+            self.position[0] -= 1
         self.status += 1
         self.status = self.status % 4
         self.audio_rotate.play()
 
     def move_right(self):
-        if self.status in (1, 3):
-            if self.position[0] < Constants.BOARD_SIZE[0] - 2:
-                self.position[0] += 1
-        elif self.status in (0, 2):
+        if self.status in (0, 2):
             if self.position[0] < Constants.BOARD_SIZE[0] - 3:
                 self.position[0] += 1
+        elif self.status in (1, 3):
+            if self.position[0] < Constants.BOARD_SIZE[0] - 2:
+                self.position[0] += 1
+
+        self.audio_move.play()
 
     def get_sprite(self):
         if self.status == 0:
@@ -283,29 +338,342 @@ class BlockJ(Block):
         elif self.status == 3:
             return pygame.transform.rotate(self.sprite.image, 270)
 
+    def check_bottom(self):
+        if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
+            return False
+        if board.check_under(self.position, self.get_under()):
+            return True
+        return False
+
+    def get_height(self):
+        if self.status in (0, 2):
+            return 2
+        elif self.status in (1, 3):
+            return 3
+
+    def get_under(self):
+        if self.status == 0:
+            return [2, 2, 2]
+        elif self.status == 1:
+            return [3, 3]
+        elif self.status == 2:
+            return [1, 1, 2]
+        elif self.status == 3:
+            return [3, 1]
+
+    def get_pattern(self):
+        if self.status == 0:
+            return [[Constants.J, -1, -1],
+                    [Constants.J, Constants.J, Constants.J]]
+        elif self.status == 1:
+            return [[-1, Constants.J],
+                    [-1, Constants.J],
+                    [Constants.J, Constants.J]]
+        elif self.status == 2:
+            return [[Constants.J, Constants.J, Constants.J],
+                    [-1, -1, Constants.J]]
+        elif self.status == 3:
+            return [[Constants.J, Constants.J],
+                    [Constants.J, -1],
+                    [Constants.J, -1]]
+
 
 class BlockL(Block):
-    pass
+    def __init__(self):
+        super().__init__()
+        self.position = [4, 0]
+        self.sprite = self.sprite_L
+
+    def rotate(self):
+        if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
+            self.position[0] -= 1
+        self.status += 1
+        self.status = self.status % 4
+        self.audio_rotate.play()
+
+    def move_right(self):
+        if self.status in (0, 2):
+            if self.position[0] < Constants.BOARD_SIZE[0] - 3:
+                self.position[0] += 1
+        elif self.status in (1, 3):
+            if self.position[0] < Constants.BOARD_SIZE[0] - 2:
+                self.position[0] += 1
+
+        self.audio_move.play()
+
+    def get_sprite(self):
+        if self.status == 0:
+            return self.sprite.image
+        elif self.status == 1:
+            return pygame.transform.rotate(self.sprite.image, 90)
+        elif self.status == 2:
+            return pygame.transform.rotate(self.sprite.image, 180)
+        elif self.status == 3:
+            return pygame.transform.rotate(self.sprite.image, 270)
+
+    def check_bottom(self):
+        if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
+            return False
+        if board.check_under(self.position, self.get_under()):
+            return True
+        return False
+
+    def get_height(self):
+        if self.status in (0, 2):
+            return 2
+        elif self.status in (1, 3):
+            return 3
+
+    def get_under(self):
+        if self.status == 0:
+            return [2, 2, 2]
+        elif self.status == 1:
+            return [1, 3]
+        elif self.status == 2:
+            return [2, 1, 1]
+        elif self.status == 3:
+            return [3, 3]
+
+    def get_pattern(self):
+        if self.status == 0:
+            return [[-1, -1, Constants.L],
+                    [Constants.L, Constants.L, Constants.L]]
+        elif self.status == 1:
+            return [[Constants.L, Constants.L],
+                    [-1, Constants.L],
+                    [-1, Constants.L]]
+        elif self.status == 2:
+            return [[Constants.L, Constants.L, Constants.L],
+                    [Constants.L, -1, -1]]
+        elif self.status == 3:
+            return [[Constants.L, -1],
+                    [Constants.L, -1],
+                    [Constants.L, Constants.L]]
 
 
 class BlockO(Block):
-    pass
+    def __init__(self):
+        super().__init__()
+        self.position = [5, 0]
+        self.sprite = self.sprite_O
+
+    def rotate(self):
+        self.audio_rotate.play()
+
+    def move_right(self):
+        if self.position[0] < Constants.BOARD_SIZE[0] - 2:
+            self.position[0] += 1
+        self.audio_move.play()
+
+    def get_sprite(self):
+        if self.status == 0:
+            return self.sprite.image
+
+    def check_bottom(self):
+        length = 2
+        height = 2
+        if self.position[1] >= Constants.BOARD_SIZE[1] - height:
+            return False
+        if sum(board.get_line(self.position, length, height)) == 0:
+            return True
+        return False
+
+    def get_pattern(self):
+        return [[Constants.O, Constants.O],
+                [Constants.O, Constants.O]]
 
 
 class BlockS(Block):
-    pass
+    def __init__(self):
+        super().__init__()
+        self.position = [4, 0]
+        self.sprite = self.sprite_S
+
+    def rotate(self):
+        if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
+            self.position[0] -= 1
+        self.status += 1
+        self.status = self.status % 2
+        self.audio_rotate.play()
+
+    def move_right(self):
+        if self.status == 0:
+            if self.position[0] < Constants.BOARD_SIZE[0] - 3:
+                self.position[0] += 1
+        elif self.status == 1:
+            if self.position[0] < Constants.BOARD_SIZE[0] - 2:
+                self.position[0] += 1
+
+        self.audio_move.play()
+
+    def get_sprite(self):
+        if self.status == 0:
+            return self.sprite.image
+        elif self.status == 1:
+            return pygame.transform.rotate(self.sprite.image, 90)
+
+    def check_bottom(self):
+        if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
+            return False
+        if board.check_under(self.position, self.get_under()):
+            return True
+        return False
+
+    def get_height(self):
+        if self.status == 0:
+            return 2
+        elif self.status == 1:
+            return 3
+
+    def get_under(self):
+        if self.status == 0:
+            return [2, 2, 1]
+        elif self.status == 1:
+            return [2, 3]
+
+    def get_pattern(self):
+        if self.status == 0:
+            return [[-1, Constants.S, Constants.S],
+                    [Constants.S, Constants.S, -1]]
+        elif self.status == 1:
+            return [[Constants.S, -1],
+                    [Constants.S, Constants.S],
+                    [-1, Constants.S]]
 
 
 class BlockT(Block):
-    pass
+    def __init__(self):
+        super().__init__()
+        self.position = [4, 0]
+        self.sprite = self.sprite_T
+
+    def rotate(self):
+        if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
+            self.position[0] -= 1
+        self.status += 1
+        self.status = self.status % 4
+        self.audio_rotate.play()
+
+    def move_right(self):
+        if self.status in (0, 2):
+            if self.position[0] < Constants.BOARD_SIZE[0] - 3:
+                self.position[0] += 1
+        elif self.status in (1, 3):
+            if self.position[0] < Constants.BOARD_SIZE[0] - 2:
+                self.position[0] += 1
+
+        self.audio_move.play()
+
+    def get_sprite(self):
+        if self.status == 0:
+            return self.sprite.image
+        elif self.status == 1:
+            return pygame.transform.rotate(self.sprite.image, 90)
+        elif self.status == 2:
+            return pygame.transform.rotate(self.sprite.image, 180)
+        elif self.status == 3:
+            return pygame.transform.rotate(self.sprite.image, 270)
+
+    def check_bottom(self):
+        if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
+            return False
+        if board.check_under(self.position, self.get_under()):
+            return True
+        return False
+
+    def get_height(self):
+        if self.status in (0, 2):
+            return 2
+        elif self.status in (1, 3):
+            return 3
+
+    def get_under(self):
+        if self.status == 0:
+            return [2, 2, 2]
+        elif self.status == 1:
+            return [2, 3]
+        elif self.status == 2:
+            return [1, 2, 1]
+        elif self.status == 3:
+            return [3, 2]
+
+    def get_pattern(self):
+        if self.status == 0:
+            return [[-1, Constants.T, -1],
+                    [Constants.T, Constants.T, Constants.T]]
+        elif self.status == 1:
+            return [[-1, Constants.T],
+                    [Constants.T, Constants.T],
+                    [-1, Constants.T]]
+        elif self.status == 2:
+            return [[Constants.T, Constants.T, Constants.T],
+                    [-1, Constants.T, -1]]
+        elif self.status == 3:
+            return [[Constants.T, -1],
+                    [Constants.T, Constants.T],
+                    [Constants.T, -1]]
 
 
 class BlockZ(Block):
-    pass
+    def __init__(self):
+        super().__init__()
+        self.position = [4, 0]
+        self.sprite = self.sprite_Z
+
+    def rotate(self):
+        if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
+            self.position[0] -= 1
+        self.status += 1
+        self.status = self.status % 2
+        self.audio_rotate.play()
+
+    def move_right(self):
+        if self.status == 0:
+            if self.position[0] < Constants.BOARD_SIZE[0] - 3:
+                self.position[0] += 1
+        elif self.status == 1:
+            if self.position[0] < Constants.BOARD_SIZE[0] - 2:
+                self.position[0] += 1
+
+        self.audio_move.play()
+
+    def get_sprite(self):
+        if self.status == 0:
+            return self.sprite.image
+        elif self.status == 1:
+            return pygame.transform.rotate(self.sprite.image, 90)
+
+    def check_bottom(self):
+        if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
+            return False
+        if board.check_under(self.position, self.get_under()):
+            return True
+        return False
+
+    def get_height(self):
+        if self.status == 0:
+            return 2
+        elif self.status == 1:
+            return 3
+
+    def get_under(self):
+        if self.status == 0:
+            return [1, 2, 2]
+        elif self.status == 1:
+            return [3, 2]
+
+    def get_pattern(self):
+        if self.status == 0:
+            return [[Constants.Z, Constants.Z, -1],
+                    [-1, Constants.Z, Constants.Z]]
+        elif self.status == 1:
+            return [[-1, Constants.Z],
+                    [Constants.Z, Constants.Z],
+                    [Constants.Z, -1]]
 
 
 board = Board(Constants.SIDE_LENGTH, Constants.BOARD_TOPLEFT)
-current_level = 1
+current_level = 5
 
 current_block = None
 
@@ -335,7 +703,7 @@ while True:
             current_block.fall()
 
     if current_block is None:
-        current_block = BlockI()
+        current_block = random.choice([BlockI(), BlockJ(), BlockL(), BlockO(), BlockS(), BlockT(), BlockZ()])
 
     screen.fill('black')
     board.draw_board()
