@@ -125,6 +125,14 @@ class Board:
                     self.board[position[1] + i][position[0] + j] = block_pattern[i][j]
         self.check_lines()
 
+    def check_collide(self, position, pattern):
+        for i in range(len(pattern)):
+            for j in range(len(pattern[i])):
+                if pattern[i][j] != -1:
+                    if self.board[position[1] + i][position[0] + j] != 0:
+                        return False
+        return True
+
     def check_lines(self):
         lines = list()
         for i in range(len(self.board)):
@@ -217,10 +225,12 @@ class Block:
     audio_rotate = pygame.mixer.Sound('audio/rotate.wav')
     audio_hard_drop = pygame.mixer.Sound('audio/hard_drop.wav')
     audio_soft_drop = pygame.mixer.Sound('audio/soft_drop.wav')
+    audio_rotate_2 = pygame.mixer.Sound('audio/rotate_2.wav')
     audio_move.set_volume(Constants.MAX_VOLUME)
     audio_rotate.set_volume(Constants.MAX_VOLUME)
     audio_hard_drop.set_volume(Constants.MAX_VOLUME)
     audio_soft_drop.set_volume(Constants.MAX_VOLUME)
+    audio_rotate_2.set_volume(Constants.MAX_VOLUME)
 
     def __init__(self):
         self.status = 0
@@ -271,6 +281,17 @@ class Block:
     def get_left_pattern(self):
         return list()
 
+    def check_rotation(self):
+        if not board.check_collide(self.position, self.get_pattern()):
+            self.position[1] += 1
+            if not board.check_collide(self.position, self.get_pattern()):
+                while not board.check_collide(self.position, self.get_pattern()):
+                    self.position[1] -= 1
+            else:
+                self.audio_rotate_2.play()
+                return
+        self.audio_rotate.play()
+
 
 class BlockI(Block):
     def __init__(self):
@@ -289,7 +310,7 @@ class BlockI(Block):
                 self.position[1] = Constants.BOARD_SIZE[1] - 4
         self.status += 1
         self.status = self.status % 2
-        self.audio_rotate.play()
+        self.check_rotation()
 
     def move_right(self):
         if self.status == 1 and self.position[0] >= Constants.BOARD_SIZE[0] - 4:
@@ -355,7 +376,7 @@ class BlockJ(Block):
             self.position[0] -= 1
         self.status += 1
         self.status = self.status % 4
-        self.audio_rotate.play()
+        self.check_rotation()
 
     def move_right(self):
         if self.status in (0, 2) and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
@@ -447,7 +468,7 @@ class BlockL(Block):
             self.position[0] -= 1
         self.status += 1
         self.status = self.status % 4
-        self.audio_rotate.play()
+        self.check_rotation()
 
     def move_right(self):
         if self.status in (0, 2) and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
@@ -580,7 +601,7 @@ class BlockS(Block):
             self.position[0] -= 1
         self.status += 1
         self.status = self.status % 2
-        self.audio_rotate.play()
+        self.check_rotation()
 
     def move_right(self):
         if self.status == 0 and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
@@ -649,7 +670,7 @@ class BlockT(Block):
             self.position[0] -= 1
         self.status += 1
         self.status = self.status % 4
-        self.audio_rotate.play()
+        self.check_rotation()
 
     def move_right(self):
         if self.status in (0, 2) and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
@@ -742,7 +763,7 @@ class BlockZ(Block):
             self.position[0] -= 1
         self.status += 1
         self.status = self.status % 2
-        self.audio_rotate.play()
+        self.check_rotation()
 
     def move_right(self):
         if self.status == 0 and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
@@ -828,7 +849,6 @@ FALL_BLOCK_EVENT = pygame.USEREVENT
 pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // current_level)
 
 lose = False
-counter = 0
 
 start_time = pygame.time.get_ticks()
 
@@ -849,8 +869,6 @@ while True:
                 current_block.block.rotate()
             elif event.key == Settings.HARD_DROP_BUTTON:
                 current_block.block.hard_drop()
-                counter += 1
-                print(counter)
             elif event.key == Settings.MOVE_DOWN_BUTTON:
                 current_block.move_down = True
             elif event.key == 13:
