@@ -6,13 +6,16 @@ import pygame
 class Constants:
     I, J, L, O, S, T, Z = 1, 2, 3, 4, 5, 6, 7
     SIDE_LENGTH = 30
-    WINDOW_SIZE = (700, 650)
+    WINDOW_SIZE = (900, 650)
     BOARD_TOPLEFT = (50, 20)
     BOARD_SIZE = (10, 20)
     MAX_VOLUME = 0.5
     FALL_TIME = 2000
-    FONT_SIZE = 60
+    FONT_SIZE = 30
     SCORE_TOPLEFT = (400, 30)
+    CURRENT_LEVEL_TOPLEFT = (400, 130)
+    LINES_CLEARED_TOPLEFT = (400, 230)
+    LINES_TILL_NEXT_LEVEL_TOPLEFT = (400, 330)
 
 
 class Settings:
@@ -182,6 +185,8 @@ class Board:
         elif len(lines) == 4:
             game.add_score(1200 * (game.current_level + 1))
 
+        game.add_cleared_lines(len(lines))
+
     def check_lose(self):
         if len(set(self.board[0])) != 1:
             game.lose = True
@@ -287,7 +292,7 @@ class Block:
 
     def anchor(self):
         game.board.anchor_block(self.position, self.get_pattern())
-        game.current_block.block = game.next_block()
+        game.next_block()
 
     def check_bottom(self):
         pass
@@ -869,7 +874,11 @@ class CurrentBlock:
 
 
 class Game:
+    audio_level_up = pygame.mixer.Sound('audio/game_level_up.wav')
+
     def __init__(self, level):
+        self.lines_cleared = 0
+        self.lines_cleared_from_last_level = 0
         self.score = 0
         self.current_block = CurrentBlock()
         self.board = Board(Constants.SIDE_LENGTH, Constants.BOARD_TOPLEFT)
@@ -878,26 +887,79 @@ class Game:
         self.lose = False
         self.font = pygame.font.Font('fonts/Orbitron-Bold.ttf', Constants.FONT_SIZE)
         self.combo = 0
+        self.load_music()
+
+    def load_music(self):
+        if self.current_level < 10:
+            pygame.mixer.music.load('music/default/main_theme.ogg')
+        elif 10 <= self.current_level < 15:
+            pygame.mixer.music.load('music/default/main_theme_2.ogg')
+        elif 15 <= self.current_level <= 20:
+            pygame.mixer.music.load('music/default/main_theme_3.ogg')
+        pygame.mixer.music.play(-1)
 
     def add_score(self, score):
         self.score += score
 
     def draw_score(self):
-        surface = self.font.render(str(self.score), True, (255, 255, 255))
+        surface = self.font.render("Score: " + str(self.score), True, (255, 255, 255))
         rect = surface.get_rect(topleft=Constants.SCORE_TOPLEFT)
         screen.blit(surface, rect)
+        surface = self.font.render("Level: " + str(self.current_level), True, (255, 255, 255))
+        rect = surface.get_rect(topleft=Constants.CURRENT_LEVEL_TOPLEFT)
+        screen.blit(surface, rect)
+        surface = self.font.render("Lines cleared: " + str(self.lines_cleared), True, (255, 255, 255))
+        rect = surface.get_rect(topleft=Constants.LINES_CLEARED_TOPLEFT)
+        screen.blit(surface, rect)
+        surface = self.font.render("Lines till next level: " + str(self.get_lines_to_next_level()), True, (255, 255, 255))
+        rect = surface.get_rect(topleft=Constants.LINES_TILL_NEXT_LEVEL_TOPLEFT)
+        screen.blit(surface, rect)
+
+    def get_lines_to_next_level(self):
+        if self.current_level < 10:
+            return 10 - self.lines_cleared_from_last_level
+        elif 10 <= self.current_level < 15:
+            return 20 - self.lines_cleared_from_last_level
+        elif 15 <= self.current_level < 20:
+            return 30 - self.lines_cleared_from_last_level
+
+    def add_cleared_lines(self, lines):
+        self.lines_cleared += lines
+        self.lines_cleared_from_last_level += lines
+        self.check_level()
 
     def next_block(self):
         self.current_block.set_block(
             random.choice([BlockI(), BlockJ(), BlockL(), BlockO(), BlockS(), BlockT(), BlockZ()]))
 
+    def level_up(self):
+        self.current_level += 1
+        self.audio_level_up.play()
+        pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // self.current_level)
+
+    def check_level(self):
+        if self.lines_cleared_from_last_level >= 10:
+            if self.current_level < 10:
+                self.lines_cleared_from_last_level -= 10
+                self.level_up()
+                if self.current_level == 10:
+                    pygame.mixer.music.load('music/default/main_theme_2.ogg')
+                    pygame.mixer.music.play(-1)
+            elif 10 <= self.current_level < 15 and self.lines_cleared_from_last_level >= 20:
+                self.lines_cleared_from_last_level -= 20
+                self.level_up()
+                if self.current_level == 15:
+                    pygame.mixer.music.load('music/default/main_theme_3.ogg')
+                    pygame.mixer.music.play(-1)
+            elif 15 <= self.current_level <= 20 and self.lines_cleared_from_last_level >= 30:
+                self.lines_cleared_from_last_level -= 30
+                self.level_up()
+
+
 
 FALL_BLOCK_EVENT = pygame.USEREVENT
 
-pygame.mixer.music.load('music/main_theme.ogg')
-pygame.mixer.music.play(-1)
-
-game = Game(1)
+game = Game(14)
 
 while True:
     for event in pygame.event.get():
