@@ -6,11 +6,13 @@ import pygame
 class Constants:
     I, J, L, O, S, T, Z = 1, 2, 3, 4, 5, 6, 7
     SIDE_LENGTH = 30
-    WINDOW_SIZE = (400, 650)
+    WINDOW_SIZE = (700, 650)
     BOARD_TOPLEFT = (50, 20)
     BOARD_SIZE = (10, 20)
     MAX_VOLUME = 0.5
     FALL_TIME = 2000
+    FONT_SIZE = 60
+    SCORE_TOPLEFT = (400, 30)
 
 
 class Settings:
@@ -71,6 +73,8 @@ class Board:
         self.init_board()
         self.topleft_x, self.topleft_y = topleft
         self.side_length = side_length
+        self.last_time_destroyed = 0
+        self.combo_counter = 0
 
     def init_board(self):
         for i in range(Constants.BOARD_SIZE[1]):
@@ -128,9 +132,12 @@ class Board:
     def check_collide(self, position, pattern):
         for i in range(len(pattern)):
             for j in range(len(pattern[i])):
-                if pattern[i][j] != -1:
-                    if self.board[position[1] + i][position[0] + j] != 0:
-                        return False
+                try:
+                    if pattern[i][j] != -1:
+                        if self.board[position[1] + i][position[0] + j] != 0:
+                            return False
+                except IndexError:
+                    return False
         return True
 
     def check_lines(self):
@@ -158,10 +165,26 @@ class Board:
                 self.board[i] = self.board[i - 1].copy()
                 i -= 1
 
+        if pygame.time.get_ticks() - self.last_time_destroyed < 5000:
+            self.combo_counter += 1
+        else:
+            self.combo_counter = 0
+
+        if game.combo > 0:
+            game.add_score(self.combo_counter * game.current_level + 50 * game.current_level)
+
+        if len(lines) == 1:
+            game.add_score(40 * (game.current_level + 1))
+        elif len(lines) == 2:
+            game.add_score(100 * (game.current_level + 1))
+        elif len(lines) == 3:
+            game.add_score(300 * (game.current_level + 1))
+        elif len(lines) == 4:
+            game.add_score(1200 * (game.current_level + 1))
+
     def check_lose(self):
         if len(set(self.board[0])) != 1:
-            global lose
-            lose = True
+            game.lose = True
 
     def check_right(self, position, pattern):
         for i in range(len(pattern)):
@@ -258,14 +281,13 @@ class Block:
     def hard_drop(self):
         while self.check_bottom():
             self.position[1] += 1
+            game.score += 2
         self.audio_hard_drop.play()
         self.anchor()
 
     def anchor(self):
-        board.anchor_block(self.position, self.get_pattern())
-        global current_block
-        del current_block.block
-        current_block.block = None
+        game.board.anchor_block(self.position, self.get_pattern())
+        game.current_block.block = game.next_block()
 
     def check_bottom(self):
         pass
@@ -274,18 +296,18 @@ class Block:
         return list()
 
     def move_left(self):
-        if self.position[0] > 0 and board.check_left(self.position, self.get_left_pattern()):
+        if self.position[0] > 0 and game.board.check_left(self.position, self.get_left_pattern()):
             self.position[0] -= 1
-        self.audio_move.play()
+            self.audio_move.play()
 
     def get_left_pattern(self):
         return list()
 
     def check_rotation(self):
-        if not board.check_collide(self.position, self.get_pattern()):
+        if not game.board.check_collide(self.position, self.get_pattern()):
             self.position[1] += 1
-            if not board.check_collide(self.position, self.get_pattern()):
-                while not board.check_collide(self.position, self.get_pattern()):
+            if not game.board.check_collide(self.position, self.get_pattern()):
+                while not game.board.check_collide(self.position, self.get_pattern()):
                     self.position[1] -= 1
             else:
                 self.audio_rotate_2.play()
@@ -317,7 +339,7 @@ class BlockI(Block):
             return
         elif self.status == 0 and self.position[0] >= Constants.BOARD_SIZE[0] - 1:
             return
-        if board.check_right(self.position, self.get_right_pattern()):
+        if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
         self.audio_move.play()
 
@@ -351,7 +373,7 @@ class BlockI(Block):
             height = 1
         if self.position[1] >= Constants.BOARD_SIZE[1] - height:
             return False
-        if sum(board.get_line(self.position, length, height)) == 0:
+        if sum(game.board.get_line(self.position, length, height)) == 0:
             return True
         return False
 
@@ -383,7 +405,7 @@ class BlockJ(Block):
             return
         elif self.status in (1, 3) and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
             return
-        if board.check_right(self.position, self.get_right_pattern()):
+        if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
         self.audio_move.play()
 
@@ -420,7 +442,7 @@ class BlockJ(Block):
     def check_bottom(self):
         if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
             return False
-        if board.check_under(self.position, self.get_under()):
+        if game.board.check_under(self.position, self.get_under()):
             return True
         return False
 
@@ -475,7 +497,7 @@ class BlockL(Block):
             return
         elif self.status in (1, 3) and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
             return
-        if board.check_right(self.position, self.get_right_pattern()):
+        if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
         self.audio_move.play()
 
@@ -512,7 +534,7 @@ class BlockL(Block):
     def check_bottom(self):
         if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
             return False
-        if board.check_under(self.position, self.get_under()):
+        if game.board.check_under(self.position, self.get_under()):
             return True
         return False
 
@@ -559,8 +581,8 @@ class BlockO(Block):
         self.audio_rotate.play()
 
     def move_right(self):
-        if self.position[0] < Constants.BOARD_SIZE[0] - 2 and board.check_right(self.position,
-                                                                                self.get_right_pattern()):
+        if self.position[0] < Constants.BOARD_SIZE[0] - 2 and game.board.check_right(self.position,
+                                                                                     self.get_right_pattern()):
             self.position[0] += 1
         self.audio_move.play()
 
@@ -581,7 +603,7 @@ class BlockO(Block):
         height = 2
         if self.position[1] >= Constants.BOARD_SIZE[1] - height:
             return False
-        if sum(board.get_line(self.position, length, height)) == 0:
+        if sum(game.board.get_line(self.position, length, height)) == 0:
             return True
         return False
 
@@ -608,7 +630,7 @@ class BlockS(Block):
             return
         elif self.status == 1 and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
             return
-        if board.check_right(self.position, self.get_right_pattern()):
+        if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
         self.audio_move.play()
 
@@ -633,7 +655,7 @@ class BlockS(Block):
     def check_bottom(self):
         if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
             return False
-        if board.check_under(self.position, self.get_under()):
+        if game.board.check_under(self.position, self.get_under()):
             return True
         return False
 
@@ -677,7 +699,7 @@ class BlockT(Block):
             return
         elif self.status in (1, 3) and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
             return
-        if board.check_right(self.position, self.get_right_pattern()):
+        if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
 
         self.audio_move.play()
@@ -715,7 +737,7 @@ class BlockT(Block):
     def check_bottom(self):
         if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
             return False
-        if board.check_under(self.position, self.get_under()):
+        if game.board.check_under(self.position, self.get_under()):
             return True
         return False
 
@@ -770,7 +792,7 @@ class BlockZ(Block):
             return
         elif self.status == 1 and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
             return
-        if board.check_right(self.position, self.get_right_pattern()):
+        if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
         self.audio_move.play()
 
@@ -795,7 +817,7 @@ class BlockZ(Block):
     def check_bottom(self):
         if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
             return False
-        if board.check_under(self.position, self.get_under()):
+        if game.board.check_under(self.position, self.get_under()):
             return True
         return False
 
@@ -836,24 +858,46 @@ class CurrentBlock:
         elif self.move_left:
             self.block.move_left()
         elif self.move_down:
-            self.block.fall()
-            self.audio_fall.play()
+            if self.block.position[1] + len(self.block.get_pattern()) < Constants.BOARD_SIZE[1] \
+                    and self.block.check_bottom():
+                game.add_score(1)
+                self.block.fall()
+                self.audio_fall.play()
+
+    def set_block(self, block):
+        self.block = block
 
 
-board = Board(Constants.SIDE_LENGTH, Constants.BOARD_TOPLEFT)
-current_level = 1
+class Game:
+    def __init__(self, level):
+        self.score = 0
+        self.current_block = CurrentBlock()
+        self.board = Board(Constants.SIDE_LENGTH, Constants.BOARD_TOPLEFT)
+        self.current_level = level
+        pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // level)
+        self.lose = False
+        self.font = pygame.font.Font('fonts/Orbitron-Bold.ttf', Constants.FONT_SIZE)
+        self.combo = 0
 
-current_block = CurrentBlock()
+    def add_score(self, score):
+        self.score += score
+
+    def draw_score(self):
+        surface = self.font.render(str(self.score), True, (255, 255, 255))
+        rect = surface.get_rect(topleft=Constants.SCORE_TOPLEFT)
+        screen.blit(surface, rect)
+
+    def next_block(self):
+        self.current_block.set_block(
+            random.choice([BlockI(), BlockJ(), BlockL(), BlockO(), BlockS(), BlockT(), BlockZ()]))
+
 
 FALL_BLOCK_EVENT = pygame.USEREVENT
-pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // current_level)
-
-lose = False
-
-start_time = pygame.time.get_ticks()
 
 pygame.mixer.music.load('music/main_theme.ogg')
 pygame.mixer.music.play(-1)
+
+game = Game(1)
 
 while True:
     for event in pygame.event.get():
@@ -862,37 +906,38 @@ while True:
             sys.exit()
         elif event.type == pygame.KEYDOWN:
             if event.key == Settings.MOVE_LEFT_BUTTON:
-                current_block.move_left = True
+                game.current_block.move_left = True
             elif event.key == Settings.MOVE_RIGHT_BUTTON:
-                current_block.move_right = True
+                game.current_block.move_right = True
             elif event.key == Settings.ROTATE_LEFT_BUTTON:
-                current_block.block.rotate()
+                game.current_block.block.rotate()
             elif event.key == Settings.HARD_DROP_BUTTON:
-                current_block.block.hard_drop()
+                game.current_block.block.hard_drop()
             elif event.key == Settings.MOVE_DOWN_BUTTON:
-                current_block.move_down = True
+                game.current_block.move_down = True
             elif event.key == 13:
-                current_block.block = BlockI()
+                game.current_block.block = BlockI()
         elif event.type == pygame.KEYUP:
             if event.key == Settings.MOVE_LEFT_BUTTON:
-                current_block.move_left = False
+                game.current_block.move_left = False
             elif event.key == Settings.MOVE_RIGHT_BUTTON:
-                current_block.move_right = False
+                game.current_block.move_right = False
             elif event.key == Settings.MOVE_DOWN_BUTTON:
-                current_block.move_down = False
+                game.current_block.move_down = False
         elif event.type == FALL_BLOCK_EVENT:
-            current_block.block.fall()
+            game.current_block.block.fall()
 
-    if not lose:
-        if current_block.block is None:
-            current_block.block = random.choice([BlockI(), BlockJ(), BlockL(), BlockO(), BlockS(), BlockT(), BlockZ()])
+    if not game.lose:
+        if game.current_block.block is None:
+            game.next_block()
 
-        current_block.update()
+        game.current_block.update()
 
         screen.fill('black')
-        board.draw_board()
-        current_block.block.draw()
-        board.check_lose()
+        game.board.draw_board()
+        game.current_block.block.draw()
+        game.board.check_lose()
+        game.draw_score()
 
     clock.tick(15)
     pygame.display.update()
