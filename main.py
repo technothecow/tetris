@@ -149,6 +149,19 @@ class Board:
                 self.board[cursor] = self.board[cursor - 1]
                 cursor -= 1
 
+    def check_right(self, position, pattern):
+        for i in range(len(pattern)):
+            print(position[1] + i, position[0] + pattern[i])
+            if self.board[position[1] + i][position[0] + pattern[i]] != 0:
+                return False
+        return True
+
+    def check_left(self, position, pattern):
+        for i in range(len(pattern)):
+            if self.board[position[1] + i][position[0] - pattern[i] - 1] != 0:
+                return False
+        return True
+
 
 class Block:
     group_blocks = pygame.sprite.Group()
@@ -249,6 +262,14 @@ class Block:
     def get_pattern(self):
         return list()
 
+    def move_left(self):
+        if self.position[0] > 0 and board.check_left(self.position, self.get_left_pattern()):
+            self.position[0] -= 1
+        self.audio_move.play()
+
+    def get_left_pattern(self):
+        pass
+
 
 class BlockI(Block):
     def __init__(self):
@@ -270,11 +291,28 @@ class BlockI(Block):
         self.audio_rotate.play()
 
     def move_right(self):
-        if self.status == 1 and self.position[0] < Constants.BOARD_SIZE[0] - 4:
-            self.position[0] += 1
-        elif self.status == 0 and self.position[0] < Constants.BOARD_SIZE[0] - 1:
+        if self.status == 1 and self.position[0] >= Constants.BOARD_SIZE[0] - 4:
+            return
+        elif self.status == 0 and self.position[0] >= Constants.BOARD_SIZE[0] - 1:
+            return
+        if board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
         self.audio_move.play()
+
+    def get_right_pattern(self):
+        if self.status == 0:
+            return [1,
+                    1,
+                    1,
+                    1]
+        elif self.status == 1:
+            return [4]
+
+    def get_left_pattern(self):
+        if self.status == 0:
+            return [0, 0, 0, 0]
+        elif self.status == 1:
+            return [0]
 
     def get_sprite(self):
         if self.status == 0:
@@ -319,14 +357,33 @@ class BlockJ(Block):
         self.audio_rotate.play()
 
     def move_right(self):
-        if self.status in (0, 2):
-            if self.position[0] < Constants.BOARD_SIZE[0] - 3:
-                self.position[0] += 1
-        elif self.status in (1, 3):
-            if self.position[0] < Constants.BOARD_SIZE[0] - 2:
-                self.position[0] += 1
-
+        if self.status in (0, 2) and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
+            return
+        elif self.status in (1, 3) and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
+            return
+        if board.check_right(self.position, self.get_right_pattern()):
+            self.position[0] += 1
         self.audio_move.play()
+
+    def get_right_pattern(self):
+        if self.status == 0:
+            return [1, 3]
+        elif self.status == 1:
+            return [2, 2, 2]
+        elif self.status == 2:
+            return [3, 3]
+        elif self.status == 3:
+            return [2, 1, 1]
+
+    def get_left_pattern(self):
+        if self.status == 0:
+            return [0, 0]
+        elif self.status == 1:
+            return [-1, -1, 0]
+        elif self.status == 2:
+            return [0, -2]
+        elif self.status == 3:
+            return [0, 0, 0]
 
     def get_sprite(self):
         if self.status == 0:
@@ -392,14 +449,33 @@ class BlockL(Block):
         self.audio_rotate.play()
 
     def move_right(self):
-        if self.status in (0, 2):
-            if self.position[0] < Constants.BOARD_SIZE[0] - 3:
-                self.position[0] += 1
-        elif self.status in (1, 3):
-            if self.position[0] < Constants.BOARD_SIZE[0] - 2:
-                self.position[0] += 1
-
+        if self.status in (0, 2) and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
+            return
+        elif self.status in (1, 3) and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
+            return
+        if board.check_right(self.position, self.get_right_pattern()):
+            self.position[0] += 1
         self.audio_move.play()
+
+    def get_right_pattern(self):
+        if self.status == 0:
+            return [3, 3]
+        elif self.status == 1:
+            return [2, 2, 2]
+        elif self.status == 2:
+            return [3, 1]
+        elif self.status == 3:
+            return [1, 1, 2]
+
+    def get_left_pattern(self):
+        if self.status == 0:
+            return [-2, 0]
+        elif self.status == 1:
+            return [0, -1, -1]
+        elif self.status == 2:
+            return [0, 0]
+        elif self.status == 3:
+            return [0, 0, 0]
 
     def get_sprite(self):
         if self.status == 0:
@@ -461,9 +537,15 @@ class BlockO(Block):
         self.audio_rotate.play()
 
     def move_right(self):
-        if self.position[0] < Constants.BOARD_SIZE[0] - 2:
+        if self.position[0] < Constants.BOARD_SIZE[0] - 2 and board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
         self.audio_move.play()
+
+    def get_right_pattern(self):
+        return [2, 2]
+
+    def get_left_pattern(self):
+        return [0, 0]
 
     def get_sprite(self):
         if self.status == 0:
@@ -497,14 +579,25 @@ class BlockS(Block):
         self.audio_rotate.play()
 
     def move_right(self):
-        if self.status == 0:
-            if self.position[0] < Constants.BOARD_SIZE[0] - 3:
-                self.position[0] += 1
-        elif self.status == 1:
-            if self.position[0] < Constants.BOARD_SIZE[0] - 2:
-                self.position[0] += 1
-
+        if self.status == 0 and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
+            return
+        elif self.status == 1 and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
+            return
+        if board.check_right(self.position, self.get_right_pattern()):
+            self.position[0] += 1
         self.audio_move.play()
+
+    def get_right_pattern(self):
+        if self.status == 0:
+            return [3, 2]
+        elif self.status == 1:
+            return [1, 2, 2]
+
+    def get_left_pattern(self):
+        if self.status == 0:
+            return [-1, 0]
+        elif self.status == 1:
+            return [0, 0, -1]
 
     def get_sprite(self):
         if self.status == 0:
@@ -555,14 +648,34 @@ class BlockT(Block):
         self.audio_rotate.play()
 
     def move_right(self):
-        if self.status in (0, 2):
-            if self.position[0] < Constants.BOARD_SIZE[0] - 3:
-                self.position[0] += 1
-        elif self.status in (1, 3):
-            if self.position[0] < Constants.BOARD_SIZE[0] - 2:
-                self.position[0] += 1
+        if self.status in (0, 2) and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
+            return
+        elif self.status in (1, 3) and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
+            return
+        if board.check_right(self.position, self.get_right_pattern()):
+            self.position[0] += 1
 
         self.audio_move.play()
+
+    def get_right_pattern(self):
+        if self.status == 0:
+            return [2, 3]
+        elif self.status == 1:
+            return [2, 2, 2]
+        elif self.status == 2:
+            return [3, 2]
+        elif self.status == 3:
+            return [1, 2, 1]
+
+    def get_left_pattern(self):
+        if self.status == 0:
+            return [-1, 0]
+        elif self.status == 1:
+            return [-1, 0, -1]
+        elif self.status == 2:
+            return [0, -1]
+        elif self.status == 3:
+            return [0, 0, 0]
 
     def get_sprite(self):
         if self.status == 0:
@@ -628,14 +741,25 @@ class BlockZ(Block):
         self.audio_rotate.play()
 
     def move_right(self):
-        if self.status == 0:
-            if self.position[0] < Constants.BOARD_SIZE[0] - 3:
-                self.position[0] += 1
-        elif self.status == 1:
-            if self.position[0] < Constants.BOARD_SIZE[0] - 2:
-                self.position[0] += 1
-
+        if self.status == 0 and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
+            return
+        elif self.status == 1 and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
+            return
+        if board.check_right(self.position, self.get_right_pattern()):
+            self.position[0] += 1
         self.audio_move.play()
+
+    def get_right_pattern(self):
+        if self.status == 0:
+            return [2, 3]
+        elif self.status == 1:
+            return [2, 2, 1]
+
+    def get_left_pattern(self):
+        if self.status == 0:
+            return [0, -1]
+        elif self.status == 1:
+            return [-1, 0, 0]
 
     def get_sprite(self):
         if self.status == 0:
@@ -699,6 +823,8 @@ while True:
                 current_block.hard_drop()
             elif event.key == pygame.K_DOWN:
                 current_block.fall()
+            elif event.key == 13:
+                current_block = BlockI()
         elif event.type == FALL_BLOCK_EVENT:
             current_block.fall()
 
