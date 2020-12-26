@@ -16,6 +16,7 @@ class Constants:
     CURRENT_LEVEL_TOPLEFT = (400, 130)
     LINES_CLEARED_TOPLEFT = (400, 230)
     LINES_TILL_NEXT_LEVEL_TOPLEFT = (400, 330)
+    BLOCK_FALL_TIMER = 3000
 
 
 class Settings:
@@ -254,6 +255,7 @@ class Block:
     audio_hard_drop = pygame.mixer.Sound('audio/hard_drop.wav')
     audio_soft_drop = pygame.mixer.Sound('audio/soft_drop.wav')
     audio_rotate_2 = pygame.mixer.Sound('audio/rotate_2.wav')
+    audio_fall = pygame.mixer.Sound('audio/fall.wav')
     audio_move.set_volume(Constants.MAX_VOLUME)
     audio_rotate.set_volume(Constants.MAX_VOLUME)
     audio_hard_drop.set_volume(Constants.MAX_VOLUME)
@@ -263,6 +265,7 @@ class Block:
     def __init__(self):
         self.status = 0
         self.position = [4, 0]
+        self.timer_set = False
 
     def draw(self):
         screen.blit(self.get_sprite(), (Constants.BOARD_TOPLEFT[0] + Constants.SIDE_LENGTH * self.position[0],
@@ -282,12 +285,19 @@ class Block:
     def fall(self):
         if self.check_bottom():
             self.position[1] += 1
+        else:
+            if not self.timer_set:
+                self.timer_set = True
+                pygame.time.set_timer(game.BLOCK_ANCHOR, Constants.BLOCK_FALL_TIMER, 1)
 
-    def hard_drop(self):
+    def hard_drop(self, sound):
         while self.check_bottom():
             self.position[1] += 1
             game.score += 2
-        self.audio_hard_drop.play()
+        if sound:
+            self.audio_hard_drop.play()
+        else:
+            self.audio_fall.play()
         self.anchor()
 
     def anchor(self):
@@ -875,6 +885,8 @@ class CurrentBlock:
 
 class Game:
     audio_level_up = pygame.mixer.Sound('audio/game_level_up.wav')
+    audio_level_up1 = pygame.mixer.Sound('audio/level_up1.wav')
+    audio_level_up2 = pygame.mixer.Sound('audio/level_up2.wav')
 
     def __init__(self, level):
         self.lines_cleared = 0
@@ -887,6 +899,7 @@ class Game:
         self.lose = False
         self.font = pygame.font.Font('fonts/Orbitron-Bold.ttf', Constants.FONT_SIZE)
         self.combo = 0
+        self.BLOCK_ANCHOR = pygame.event.custom_type()
         self.load_music()
 
     def load_music(self):
@@ -911,7 +924,8 @@ class Game:
         surface = self.font.render("Lines cleared: " + str(self.lines_cleared), True, (255, 255, 255))
         rect = surface.get_rect(topleft=Constants.LINES_CLEARED_TOPLEFT)
         screen.blit(surface, rect)
-        surface = self.font.render("Lines till next level: " + str(self.get_lines_to_next_level()), True, (255, 255, 255))
+        surface = self.font.render("Lines till next level: " + str(self.get_lines_to_next_level()), True,
+                                   (255, 255, 255))
         rect = surface.get_rect(topleft=Constants.LINES_TILL_NEXT_LEVEL_TOPLEFT)
         screen.blit(surface, rect)
 
@@ -934,7 +948,12 @@ class Game:
 
     def level_up(self):
         self.current_level += 1
-        self.audio_level_up.play()
+        if self.current_level == 10:
+            self.audio_level_up1.play()
+        elif self.current_level == 15:
+            self.audio_level_up2.play()
+        else:
+            self.audio_level_up.play()
         pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // self.current_level)
 
     def check_level(self):
@@ -956,8 +975,7 @@ class Game:
                 self.level_up()
 
 
-
-FALL_BLOCK_EVENT = pygame.USEREVENT
+FALL_BLOCK_EVENT = pygame.event.custom_type()
 
 game = Game(14)
 
@@ -974,7 +992,7 @@ while True:
             elif event.key == Settings.ROTATE_LEFT_BUTTON:
                 game.current_block.block.rotate()
             elif event.key == Settings.HARD_DROP_BUTTON:
-                game.current_block.block.hard_drop()
+                game.current_block.block.hard_drop(True)
             elif event.key == Settings.MOVE_DOWN_BUTTON:
                 game.current_block.move_down = True
             elif event.key == 13:
@@ -988,6 +1006,9 @@ while True:
                 game.current_block.move_down = False
         elif event.type == FALL_BLOCK_EVENT:
             game.current_block.block.fall()
+        elif event.type == game.BLOCK_ANCHOR:
+            if game.current_block.block.timer_set:
+                game.current_block.block.hard_drop(False)
 
     if not game.lose:
         if game.current_block.block is None:
