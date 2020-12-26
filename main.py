@@ -17,11 +17,12 @@ class Settings:
     AUDIO_VOLUME = 100
     MUSIC_VOLUME = 100
 
-    def set_audio_volume(self, value):
-        self.AUDIO_VOLUME = value
-
-    def get_audio_volume(self):
-        return self.AUDIO_VOLUME
+    MOVE_LEFT_BUTTON = pygame.K_LEFT
+    MOVE_RIGHT_BUTTON = pygame.K_RIGHT
+    MOVE_DOWN_BUTTON = pygame.K_DOWN
+    ROTATE_LEFT_BUTTON = pygame.K_UP
+    ROTATE_RIGHT_BUTTON = pygame.K_q
+    HARD_DROP_BUTTON = pygame.K_SPACE
 
 
 pygame.mixer.pre_init()
@@ -126,9 +127,9 @@ class Board:
 
     def check_lines(self):
         lines = list()
-        for line in range(len(self.board)):
-            if 0 not in self.board[line]:
-                lines.append(line)
+        for i in range(len(self.board)):
+            if 0 not in self.board[i]:
+                lines.append(i)
         self.destroy_lines(lines)
 
     def destroy_lines(self, lines):
@@ -144,14 +145,18 @@ class Board:
             self.audio_tetris.play()
 
         for line in lines:
-            cursor = line
-            while cursor > 0:
-                self.board[cursor] = self.board[cursor - 1]
-                cursor -= 1
+            i = line
+            while i > 0:
+                self.board[i] = self.board[i - 1].copy()
+                i -= 1
+
+    def check_lose(self):
+        if len(set(self.board[0])) != 1:
+            global lose
+            lose = True
 
     def check_right(self, position, pattern):
         for i in range(len(pattern)):
-            print(position[1] + i, position[0] + pattern[i])
             if self.board[position[1] + i][position[0] + pattern[i]] != 0:
                 return False
         return True
@@ -228,11 +233,6 @@ class Block:
     def get_sprite(self):
         pass
 
-    def move_left(self):
-        if self.position[0] > 0:
-            self.position[0] -= 1
-        self.audio_move.play()
-
     def move_right(self):
         if self.position[0] < Constants.BOARD_SIZE[0]:
             self.position[0] += 1
@@ -254,7 +254,8 @@ class Block:
     def anchor(self):
         board.anchor_block(self.position, self.get_pattern())
         global current_block
-        current_block = None
+        del current_block.block
+        current_block.block = None
 
     def check_bottom(self):
         pass
@@ -268,7 +269,7 @@ class Block:
         self.audio_move.play()
 
     def get_left_pattern(self):
-        pass
+        return list()
 
 
 class BlockI(Block):
@@ -537,15 +538,18 @@ class BlockO(Block):
         self.audio_rotate.play()
 
     def move_right(self):
-        if self.position[0] < Constants.BOARD_SIZE[0] - 2 and board.check_right(self.position, self.get_right_pattern()):
+        if self.position[0] < Constants.BOARD_SIZE[0] - 2 and board.check_right(self.position,
+                                                                                self.get_right_pattern()):
             self.position[0] += 1
         self.audio_move.play()
 
     def get_right_pattern(self):
-        return [2, 2]
+        if self.status == 0:
+            return [2, 2]
 
     def get_left_pattern(self):
-        return [0, 0]
+        if self.status == 0:
+            return [0, 0]
 
     def get_sprite(self):
         if self.status == 0:
@@ -796,13 +800,37 @@ class BlockZ(Block):
                     [Constants.Z, -1]]
 
 
-board = Board(Constants.SIDE_LENGTH, Constants.BOARD_TOPLEFT)
-current_level = 5
+class CurrentBlock:
+    audio_fall = pygame.mixer.Sound('audio/soft_drop.wav')
 
-current_block = None
+    def __init__(self):
+        self.block = None
+        self.move_right = False
+        self.move_left = False
+        self.move_down = False
+
+    def update(self):
+        if self.move_right:
+            self.block.move_right()
+        elif self.move_left:
+            self.block.move_left()
+        elif self.move_down:
+            self.block.fall()
+            self.audio_fall.play()
+
+
+board = Board(Constants.SIDE_LENGTH, Constants.BOARD_TOPLEFT)
+current_level = 1
+
+current_block = CurrentBlock()
 
 FALL_BLOCK_EVENT = pygame.USEREVENT
 pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // current_level)
+
+lose = False
+counter = 0
+
+start_time = pygame.time.get_ticks()
 
 pygame.mixer.music.load('music/main_theme.ogg')
 pygame.mixer.music.play(-1)
@@ -813,27 +841,40 @@ while True:
             pygame.quit()
             sys.exit()
         elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_LEFT:
-                current_block.move_left()
-            elif event.key == pygame.K_RIGHT:
-                current_block.move_right()
-            elif event.key == pygame.K_UP:
-                current_block.rotate()
-            elif event.key == pygame.K_SPACE:
-                current_block.hard_drop()
-            elif event.key == pygame.K_DOWN:
-                current_block.fall()
+            if event.key == Settings.MOVE_LEFT_BUTTON:
+                current_block.move_left = True
+            elif event.key == Settings.MOVE_RIGHT_BUTTON:
+                current_block.move_right = True
+            elif event.key == Settings.ROTATE_LEFT_BUTTON:
+                current_block.block.rotate()
+            elif event.key == Settings.HARD_DROP_BUTTON:
+                current_block.block.hard_drop()
+                counter += 1
+                print(counter)
+            elif event.key == Settings.MOVE_DOWN_BUTTON:
+                current_block.move_down = True
             elif event.key == 13:
-                current_block = BlockI()
+                current_block.block = BlockI()
+        elif event.type == pygame.KEYUP:
+            if event.key == Settings.MOVE_LEFT_BUTTON:
+                current_block.move_left = False
+            elif event.key == Settings.MOVE_RIGHT_BUTTON:
+                current_block.move_right = False
+            elif event.key == Settings.MOVE_DOWN_BUTTON:
+                current_block.move_down = False
         elif event.type == FALL_BLOCK_EVENT:
-            current_block.fall()
+            current_block.block.fall()
 
-    if current_block is None:
-        current_block = random.choice([BlockI(), BlockJ(), BlockL(), BlockO(), BlockS(), BlockT(), BlockZ()])
+    if not lose:
+        if current_block.block is None:
+            current_block.block = random.choice([BlockI(), BlockJ(), BlockL(), BlockO(), BlockS(), BlockT(), BlockZ()])
 
-    screen.fill('black')
-    board.draw_board()
-    current_block.draw()
+        current_block.update()
 
-    clock.tick(30)
+        screen.fill('black')
+        board.draw_board()
+        current_block.block.draw()
+        board.check_lose()
+
+    clock.tick(15)
     pygame.display.update()
