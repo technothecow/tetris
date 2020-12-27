@@ -5,10 +5,12 @@ import pygame
 
 class Constants:
     I, J, L, O, S, T, Z = 1, 2, 3, 4, 5, 6, 7
+    MAIN_MENU, SETTINGS, START_SCREEN, SHOP, PAUSE, INGAME = 1, 2, 3, 4, 5, 6
     SIDE_LENGTH = 32
     HD = (1280, 720)
     FULL_HD = (1920, 1080)
-    WINDOW_SIZE = HD
+    MY_SCREEN = (1280, 680)
+    WINDOW_SIZE = MY_SCREEN
     FRAME_TOPLEFT = (50, 20)
     BOARD_TOPLEFT = (FRAME_TOPLEFT[0] + 99, FRAME_TOPLEFT[1] + 7)
     BOARD_SIZE = (10, 20)
@@ -23,6 +25,7 @@ class Constants:
     BLOCK_FALL_TIMER = 3000
     BLOCK_QUEUE_TOPLEFT = (FRAME_TOPLEFT[0] + 436, FRAME_TOPLEFT[1] + 34)
     LOCKED_BLOCK_TOPLEFT = (FRAME_TOPLEFT[0] + 19, FRAME_TOPLEFT[1] + 54)
+    FPS = 20
 
 
 class Settings:
@@ -963,13 +966,17 @@ class Game:
         self.current_block = CurrentBlock()
         self.board = Board(Constants.SIDE_LENGTH, Constants.BOARD_TOPLEFT)
         self.current_level = level
-        pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // level)
         self.lose = False
         self.font = pygame.font.Font('fonts/Orbitron-Bold.ttf', Constants.FONT_SIZE)
         self.combo = 0
         self.BLOCK_ANCHOR = pygame.event.custom_type()
         self.load_music()
         self.block_queue = BlockQueue()
+        self.locked = False
+        pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // level)
+
+    def may_lock(self):
+        return not self.locked
 
     def load_music(self):
         if self.current_level < 10:
@@ -1013,6 +1020,7 @@ class Game:
 
     def next_block(self):
         self.current_block.set_block(self.block_queue.pop(0))
+        self.locked = False
 
     def level_up(self):
         self.current_level += 1
@@ -1056,6 +1064,7 @@ class BlockQueue:
 
     def lock(self):
         self.locked, game.current_block.block = game.current_block.get_type(), self.locked
+        game.locked = True
 
     def pop(self, index):
         self.queue.append(get_random_block())
@@ -1093,55 +1102,98 @@ class Background:
         screen.blit(self.frames[self.current_frame], (0, 0))
 
 
+class StartScreen:
+    surface_tetris_logo = pygame.image.load('res/tetris_logo.png').convert()
+    rect_tetris_logo = surface_tetris_logo.get_rect(
+        center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 4))
+    font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', 40)
+    surface_text = font.render('Press F to continue', True, (255, 255, 255))
+    rect_text = surface_text.get_rect(center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 4 * 3))
+
+    def __init__(self):
+        self.text_fading_mode = 0
+
+    def get_surface_text(self):
+        current_alpha = self.surface_text.get_alpha()
+        if self.text_fading_mode == 0:
+            self.surface_text.set_alpha(current_alpha + 10)
+        elif self.text_fading_mode == 1:
+            self.surface_text.set_alpha(current_alpha - 10)
+
+        if current_alpha == 0:
+            self.text_fading_mode = 0
+        elif current_alpha == 255:
+            self.text_fading_mode = 1
+
+        return self.surface_text
+
+
 FALL_BLOCK_EVENT = pygame.event.custom_type()
 
 background = Background()
-game = Game(15)
+program_state = Constants.START_SCREEN
+start_screen = StartScreen()
+
+pygame.mixer.music.load('music/menu_theme.mp3')
+pygame.mixer.music.play(-1)
 
 while True:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
-        elif event.type == pygame.KEYDOWN:
-            if event.key == Settings.MOVE_LEFT_BUTTON:
-                game.current_block.move_left = True
-            elif event.key == Settings.MOVE_RIGHT_BUTTON:
-                game.current_block.move_right = True
-            elif event.key == Settings.ROTATE_LEFT_BUTTON:
-                game.current_block.block.rotate()
-            elif event.key == Settings.HARD_DROP_BUTTON:
-                game.current_block.block.hard_drop(True)
-            elif event.key == Settings.MOVE_DOWN_BUTTON:
-                game.current_block.move_down = True
-            elif event.key == Settings.LOCK_BLOCK_BUTTON:
-                game.block_queue.lock()
-        elif event.type == pygame.KEYUP:
-            if event.key == Settings.MOVE_LEFT_BUTTON:
-                game.current_block.move_left = False
-            elif event.key == Settings.MOVE_RIGHT_BUTTON:
-                game.current_block.move_right = False
-            elif event.key == Settings.MOVE_DOWN_BUTTON:
-                game.current_block.move_down = False
-        elif event.type == FALL_BLOCK_EVENT and not game.lose:
-            game.current_block.block.fall()
-        elif event.type == game.BLOCK_ANCHOR and not game.lose:
-            if game.current_block.block.timer_set:
-                game.current_block.block.hard_drop(False)
-
     background.render()
+    if program_state == Constants.START_SCREEN:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_f:
+                    program_state = Constants.INGAME
+                    game = Game(14)
 
-    if not game.lose:
-        if game.current_block.block is None:
-            game.next_block()
+        screen.blit(StartScreen.surface_tetris_logo, StartScreen.rect_tetris_logo)
+        screen.blit(start_screen.get_surface_text(), StartScreen.rect_text)
 
-        game.current_block.update()
+    if program_state == Constants.INGAME:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == Settings.MOVE_LEFT_BUTTON:
+                    game.current_block.move_left = True
+                elif event.key == Settings.MOVE_RIGHT_BUTTON:
+                    game.current_block.move_right = True
+                elif event.key == Settings.ROTATE_LEFT_BUTTON:
+                    game.current_block.block.rotate()
+                elif event.key == Settings.HARD_DROP_BUTTON:
+                    game.current_block.block.hard_drop(True)
+                elif event.key == Settings.MOVE_DOWN_BUTTON:
+                    game.current_block.move_down = True
+                elif event.key == Settings.LOCK_BLOCK_BUTTON and game.may_lock():
+                    game.block_queue.lock()
+            elif event.type == pygame.KEYUP:
+                if event.key == Settings.MOVE_LEFT_BUTTON:
+                    game.current_block.move_left = False
+                elif event.key == Settings.MOVE_RIGHT_BUTTON:
+                    game.current_block.move_right = False
+                elif event.key == Settings.MOVE_DOWN_BUTTON:
+                    game.current_block.move_down = False
+            elif event.type == FALL_BLOCK_EVENT and not game.lose:
+                game.current_block.block.fall()
+            elif event.type == game.BLOCK_ANCHOR and not game.lose:
+                if game.current_block.block.timer_set:
+                    game.current_block.block.hard_drop(False)
 
-        game.board.draw_board()
-        game.current_block.block.draw()
-        game.board.check_lose()
-        game.draw_score()
-        game.block_queue.render()
+        if not game.lose:
+            if game.current_block.block is None:
+                game.next_block()
 
-    clock.tick(20)
+            game.current_block.update()
+
+            game.board.draw_board()
+            game.current_block.block.draw()
+            game.board.check_lose()
+            game.draw_score()
+            game.block_queue.render()
+
+    clock.tick(Constants.FPS)
     pygame.display.update()
