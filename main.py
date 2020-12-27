@@ -5,19 +5,24 @@ import pygame
 
 class Constants:
     I, J, L, O, S, T, Z = 1, 2, 3, 4, 5, 6, 7
-    SIDE_LENGTH = 30
-    WINDOW_SIZE = (900, 650)
-    BOARD_TOPLEFT = (50, 20)
+    SIDE_LENGTH = 32
+    HD = (1280, 720)
+    FULL_HD = (1920, 1080)
+    WINDOW_SIZE = HD
+    FRAME_TOPLEFT = (50, 20)
+    BOARD_TOPLEFT = (FRAME_TOPLEFT[0] + 99, FRAME_TOPLEFT[1] + 7)
     BOARD_SIZE = (10, 20)
     MAX_VOLUME = 0.5
     FALL_TIME = 2000
     FONT_SIZE = 30
-    SCORE_TOPLEFT = (400, 30)
-    CURRENT_LEVEL_TOPLEFT = (400, 130)
-    LINES_CLEARED_TOPLEFT = (400, 230)
-    LINES_TILL_NEXT_LEVEL_TOPLEFT = (400, 330)
+    SCORE_FRAME_TOPLEFT = (700, 300)
+    SCORE_TOPLEFT = (SCORE_FRAME_TOPLEFT[0] + 283, SCORE_FRAME_TOPLEFT[1] + 22)
+    CURRENT_LEVEL_TOPLEFT = (SCORE_FRAME_TOPLEFT[0] + 283, SCORE_FRAME_TOPLEFT[1] + 72)
+    TOTAL_LINES_TOPLEFT = (SCORE_FRAME_TOPLEFT[0] + 283, SCORE_FRAME_TOPLEFT[1] + 112)
+    LINES_TILL_NEXT_LEVEL_TOPLEFT = (SCORE_FRAME_TOPLEFT[0] + 283, SCORE_FRAME_TOPLEFT[1] + 152)
     BLOCK_FALL_TIMER = 3000
-    BLOCK_QUEUE_TOPLEFT = (400, 400)
+    BLOCK_QUEUE_TOPLEFT = (FRAME_TOPLEFT[0] + 436, FRAME_TOPLEFT[1] + 34)
+    LOCKED_BLOCK_TOPLEFT = (FRAME_TOPLEFT[0] + 19, FRAME_TOPLEFT[1] + 54)
 
 
 class Settings:
@@ -30,6 +35,7 @@ class Settings:
     ROTATE_LEFT_BUTTON = pygame.K_UP
     ROTATE_RIGHT_BUTTON = pygame.K_q
     HARD_DROP_BUTTON = pygame.K_SPACE
+    LOCK_BLOCK_BUTTON = 13
 
 
 pygame.mixer.pre_init()
@@ -46,32 +52,34 @@ class Board:
     audio_tetris = pygame.mixer.Sound('audio/tetris.wav')
 
     sprite_single_I = pygame.sprite.Sprite()
-    surface_single_I = pygame.image.load('res/single/singleI.png').convert_alpha()
+    surface_single_I = pygame.image.load('res/default/single/singleI.png').convert_alpha()
     sprite_single_I.image = pygame.transform.scale(surface_single_I, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
 
     sprite_single_J = pygame.sprite.Sprite()
-    surface_single_J = pygame.image.load('res/single/singleJ.png').convert_alpha()
+    surface_single_J = pygame.image.load('res/default/single/singleJ.png').convert_alpha()
     sprite_single_J.image = pygame.transform.scale(surface_single_J, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
 
     sprite_single_L = pygame.sprite.Sprite()
-    surface_single_L = pygame.image.load('res/single/singleL.png').convert_alpha()
+    surface_single_L = pygame.image.load('res/default/single/singleL.png').convert_alpha()
     sprite_single_L.image = pygame.transform.scale(surface_single_L, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
 
     sprite_single_O = pygame.sprite.Sprite()
-    surface_single_O = pygame.image.load('res/single/singleO.png').convert_alpha()
+    surface_single_O = pygame.image.load('res/default/single/singleO.png').convert_alpha()
     sprite_single_O.image = pygame.transform.scale(surface_single_O, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
 
     sprite_single_S = pygame.sprite.Sprite()
-    surface_single_S = pygame.image.load('res/single/singleS.png').convert_alpha()
+    surface_single_S = pygame.image.load('res/default/single/singleS.png').convert_alpha()
     sprite_single_S.image = pygame.transform.scale(surface_single_S, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
 
     sprite_single_T = pygame.sprite.Sprite()
-    surface_single_T = pygame.image.load('res/single/singleT.png').convert_alpha()
+    surface_single_T = pygame.image.load('res/default/single/singleT.png').convert_alpha()
     sprite_single_T.image = pygame.transform.scale(surface_single_T, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
 
     sprite_single_Z = pygame.sprite.Sprite()
-    surface_single_Z = pygame.image.load('res/single/singleZ.png').convert_alpha()
+    surface_single_Z = pygame.image.load('res/default/single/singleZ.png').convert_alpha()
     sprite_single_Z.image = pygame.transform.scale(surface_single_Z, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+    surface_frame = pygame.image.load('res/frame.png').convert_alpha()
 
     def __init__(self, side_length, topleft):
         self.board = list()
@@ -89,6 +97,7 @@ class Board:
             self.board.append(line)
 
     def draw_board(self):
+        screen.blit(self.surface_frame, Constants.FRAME_TOPLEFT)
         for i in range(len(self.board)):
             for j in range(len(self.board[i])):
                 if self.board[i][j] == 0:
@@ -210,43 +219,43 @@ class Block:
     group_blocks = pygame.sprite.Group()
 
     sprite_I = pygame.sprite.Sprite()
-    surface_I = pygame.image.load('res/I.png').convert_alpha()
+    surface_I = pygame.image.load('res/default/blocks/I.png').convert_alpha()
     sprite_I.image = pygame.transform.scale(surface_I, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH * 4))
     sprite_I.rect = sprite_I.image.get_rect()
     group_blocks.add(sprite_I)
 
     sprite_J = pygame.sprite.Sprite()
-    surface_J = pygame.image.load('res/J.png').convert_alpha()
+    surface_J = pygame.image.load('res/default/blocks/J.png').convert_alpha()
     sprite_J.image = pygame.transform.scale(surface_J, (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
     sprite_J.rect = sprite_J.image.get_rect()
     group_blocks.add(sprite_J)
 
     sprite_L = pygame.sprite.Sprite()
-    surface_L = pygame.image.load('res/L.png').convert_alpha()
+    surface_L = pygame.image.load('res/default/blocks/L.png').convert_alpha()
     sprite_L.image = pygame.transform.scale(surface_L, (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
     sprite_L.rect = sprite_L.image.get_rect()
     group_blocks.add(sprite_L)
 
     sprite_O = pygame.sprite.Sprite()
-    surface_O = pygame.image.load('res/O.png').convert_alpha()
+    surface_O = pygame.image.load('res/default/blocks/O.png').convert_alpha()
     sprite_O.image = pygame.transform.scale(surface_O, (Constants.SIDE_LENGTH * 2, Constants.SIDE_LENGTH * 2))
     sprite_O.rect = sprite_O.image.get_rect()
     group_blocks.add(sprite_O)
 
     sprite_S = pygame.sprite.Sprite()
-    surface_S = pygame.image.load('res/S.png').convert_alpha()
+    surface_S = pygame.image.load('res/default/blocks/S.png').convert_alpha()
     sprite_S.image = pygame.transform.scale(surface_S, (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
     sprite_S.rect = sprite_S.image.get_rect()
     group_blocks.add(sprite_S)
 
     sprite_T = pygame.sprite.Sprite()
-    surface_T = pygame.image.load('res/T.png').convert_alpha()
+    surface_T = pygame.image.load('res/default/blocks/T.png').convert_alpha()
     sprite_T.image = pygame.transform.scale(surface_T, (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
     sprite_T.rect = sprite_T.image.get_rect()
     group_blocks.add(sprite_T)
 
     sprite_Z = pygame.sprite.Sprite()
-    surface_Z = pygame.image.load('res/Z.png').convert_alpha()
+    surface_Z = pygame.image.load('res/default/blocks/Z.png').convert_alpha()
     sprite_Z.image = pygame.transform.scale(surface_Z, (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
     sprite_Z.rect = sprite_Z.image.get_rect()
     group_blocks.add(sprite_Z)
@@ -300,6 +309,7 @@ class Block:
         else:
             self.audio_fall.play()
         self.anchor()
+        pygame.time.set_timer(game.BLOCK_ANCHOR, 1000000, 0)
 
     def anchor(self):
         game.board.anchor_block(self.position, self.get_pattern())
@@ -337,6 +347,13 @@ class BlockI(Block):
         super().__init__()
         self.position = [3, 0]
         self.sprite = self.sprite_I
+        self.status = 1
+
+    def get_self(self):
+        return BlockI()
+
+    def get_sprite_for_frame(self):
+        return pygame.transform.scale(self.get_sprite(), (18 * 4, 18))
 
     def rotate(self):
         if self.status == 0:
@@ -409,6 +426,12 @@ class BlockJ(Block):
         super().__init__()
         self.position = [4, 0]
         self.sprite = self.sprite_J
+
+    def get_self(self):
+        return BlockJ()
+
+    def get_sprite_for_frame(self):
+        return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
 
     def rotate(self):
         if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
@@ -502,6 +525,12 @@ class BlockL(Block):
         self.position = [4, 0]
         self.sprite = self.sprite_L
 
+    def get_self(self):
+        return BlockL()
+
+    def get_sprite_for_frame(self):
+        return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
+
     def rotate(self):
         if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
             self.position[0] -= 1
@@ -594,6 +623,12 @@ class BlockO(Block):
         self.position = [5, 0]
         self.sprite = self.sprite_O
 
+    def get_self(self):
+        return BlockO()
+
+    def get_sprite_for_frame(self):
+        return pygame.transform.scale(self.get_sprite(), (18 * 2, 18 * 2))
+
     def rotate(self):
         self.audio_rotate.play()
 
@@ -634,6 +669,12 @@ class BlockS(Block):
         super().__init__()
         self.position = [4, 0]
         self.sprite = self.sprite_S
+
+    def get_self(self):
+        return BlockS()
+
+    def get_sprite_for_frame(self):
+        return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
 
     def rotate(self):
         if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
@@ -703,6 +744,12 @@ class BlockT(Block):
         super().__init__()
         self.position = [4, 0]
         self.sprite = self.sprite_T
+
+    def get_self(self):
+        return BlockT()
+
+    def get_sprite_for_frame(self):
+        return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
 
     def rotate(self):
         if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
@@ -797,6 +844,12 @@ class BlockZ(Block):
         self.position = [4, 0]
         self.sprite = self.sprite_Z
 
+    def get_self(self):
+        return BlockZ()
+
+    def get_sprite_for_frame(self):
+        return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
+
     def rotate(self):
         if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
             self.position[0] -= 1
@@ -869,6 +922,9 @@ class CurrentBlock:
         self.move_left = False
         self.move_down = False
 
+    def get_type(self):
+        return self.block.get_self()
+
     def update(self):
         if self.move_right:
             self.block.move_right()
@@ -891,6 +947,8 @@ class Game:
     audio_level_up1 = pygame.mixer.Sound('audio/level_up1.wav')
     audio_level_up2 = pygame.mixer.Sound('audio/level_up2.wav')
 
+    surface_scoreboard = pygame.image.load('res/scoreboard.png').convert_alpha()
+
     def __init__(self, level):
         self.lines_cleared = 0
         self.lines_cleared_from_last_level = 0
@@ -912,24 +970,24 @@ class Game:
         elif 10 <= self.current_level < 15:
             pygame.mixer.music.load('music/default/main_theme_2.ogg')
         elif 15 <= self.current_level <= 20:
-            pygame.mixer.music.load('music/default/main_theme_3.ogg')
+            pygame.mixer.music.load('music/default/main_theme_3.mp3')
         pygame.mixer.music.play(-1)
 
     def add_score(self, score):
         self.score += score
 
     def draw_score(self):
-        surface = self.font.render("Score: " + str(self.score), True, (255, 255, 255))
+        screen.blit(self.surface_scoreboard, Constants.SCORE_FRAME_TOPLEFT)
+        surface = self.font.render(str(self.score), True, 'black')
         rect = surface.get_rect(topleft=Constants.SCORE_TOPLEFT)
         screen.blit(surface, rect)
-        surface = self.font.render("Level: " + str(self.current_level), True, (255, 255, 255))
+        surface = self.font.render(str(self.current_level), True, 'black')
         rect = surface.get_rect(topleft=Constants.CURRENT_LEVEL_TOPLEFT)
         screen.blit(surface, rect)
-        surface = self.font.render("Lines cleared: " + str(self.lines_cleared), True, (255, 255, 255))
-        rect = surface.get_rect(topleft=Constants.LINES_CLEARED_TOPLEFT)
+        surface = self.font.render(str(self.lines_cleared), True, 'black')
+        rect = surface.get_rect(topleft=Constants.TOTAL_LINES_TOPLEFT)
         screen.blit(surface, rect)
-        surface = self.font.render("Lines till next level: " + str(self.get_lines_to_next_level()), True,
-                                   (255, 255, 255))
+        surface = self.font.render(str(self.get_lines_to_next_level()), True, 'black')
         rect = surface.get_rect(topleft=Constants.LINES_TILL_NEXT_LEVEL_TOPLEFT)
         screen.blit(surface, rect)
 
@@ -971,7 +1029,7 @@ class Game:
                 self.lines_cleared_from_last_level -= 20
                 self.level_up()
                 if self.current_level == 15:
-                    pygame.mixer.music.load('music/default/main_theme_3.ogg')
+                    pygame.mixer.music.load('music/default/main_theme_3.mp3')
                     pygame.mixer.music.play(-1)
             elif 15 <= self.current_level <= 20 and self.lines_cleared_from_last_level >= 30:
                 self.lines_cleared_from_last_level -= 30
@@ -987,6 +1045,10 @@ class BlockQueue:
         self.queue = list()
         for i in range(6):
             self.queue.append(get_random_block())
+        self.locked = None
+
+    def lock(self):
+        self.locked, game.current_block.block = game.current_block.get_type(), self.locked
 
     def pop(self, index):
         self.queue.append(get_random_block())
@@ -994,12 +1056,39 @@ class BlockQueue:
 
     def render(self):
         for i in range(len(self.queue)):
-            screen.blit(self.queue[i].get_sprite(),
-                        (Constants.BLOCK_QUEUE_TOPLEFT[0], Constants.BLOCK_QUEUE_TOPLEFT[1] + i * 70))
+            screen.blit(self.queue[i].get_sprite_for_frame(),
+                        (Constants.BLOCK_QUEUE_TOPLEFT[0], Constants.BLOCK_QUEUE_TOPLEFT[1] + i * 55))
+        if self.locked:
+            screen.blit(self.locked.get_sprite_for_frame(), Constants.LOCKED_BLOCK_TOPLEFT)
+
+
+class Background:
+    def __init__(self):
+        self.frames = list()
+        self.load_frames()
+        self.current_frame = 0
+
+    def load_frames(self):
+        for i in range(1, 122):
+            if i < 10:
+                i = '00' + str(i)
+            elif i < 100:
+                i = '0' + str(i)
+            else:
+                i = str(i)
+            temp = pygame.image.load(f'res/background/Untitled {i}.jpg').convert()
+            temp = pygame.transform.scale(temp, Constants.WINDOW_SIZE)
+            self.frames.append(temp)
+
+    def render(self):
+        self.current_frame += 1
+        self.current_frame %= 120
+        screen.blit(self.frames[self.current_frame], (0, 0))
 
 
 FALL_BLOCK_EVENT = pygame.event.custom_type()
 
+background = Background()
 game = Game(15)
 
 while True:
@@ -1018,8 +1107,8 @@ while True:
                 game.current_block.block.hard_drop(True)
             elif event.key == Settings.MOVE_DOWN_BUTTON:
                 game.current_block.move_down = True
-            elif event.key == 13:
-                game.current_block.block = BlockI()
+            elif event.key == Settings.LOCK_BLOCK_BUTTON:
+                game.block_queue.lock()
         elif event.type == pygame.KEYUP:
             if event.key == Settings.MOVE_LEFT_BUTTON:
                 game.current_block.move_left = False
@@ -1027,11 +1116,13 @@ while True:
                 game.current_block.move_right = False
             elif event.key == Settings.MOVE_DOWN_BUTTON:
                 game.current_block.move_down = False
-        elif event.type == FALL_BLOCK_EVENT:
+        elif event.type == FALL_BLOCK_EVENT and not game.lose:
             game.current_block.block.fall()
-        elif event.type == game.BLOCK_ANCHOR:
+        elif event.type == game.BLOCK_ANCHOR and not game.lose:
             if game.current_block.block.timer_set:
                 game.current_block.block.hard_drop(False)
+
+    background.render()
 
     if not game.lose:
         if game.current_block.block is None:
@@ -1039,12 +1130,11 @@ while True:
 
         game.current_block.update()
 
-        screen.fill('black')
         game.board.draw_board()
         game.current_block.block.draw()
         game.board.check_lose()
         game.draw_score()
         game.block_queue.render()
 
-    clock.tick(15)
+    clock.tick(20)
     pygame.display.update()
