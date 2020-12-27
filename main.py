@@ -5,7 +5,7 @@ import pygame
 
 class Constants:
     I, J, L, O, S, T, Z = 1, 2, 3, 4, 5, 6, 7
-    MAIN_MENU, SETTINGS, START_SCREEN, SHOP, PAUSE, INGAME = 1, 2, 3, 4, 5, 6
+    MAIN_MENU, SETTINGS, START_SCREEN, SHOP, PAUSE, INGAME, LEVEL_SELECT = 1, 2, 3, 4, 5, 6, 7
     SIDE_LENGTH = 32
     HD = (1280, 720)
     FULL_HD = (1920, 1080)
@@ -1056,6 +1056,8 @@ def get_random_block():
 
 
 class BlockQueue:
+    audio_hold = pygame.mixer.Sound('audio/hold.wav')
+
     def __init__(self):
         self.queue = list()
         for i in range(6):
@@ -1065,6 +1067,7 @@ class BlockQueue:
     def lock(self):
         self.locked, game.current_block.block = game.current_block.get_type(), self.locked
         game.locked = True
+        self.audio_hold.play()
 
     def pop(self, index):
         self.queue.append(get_random_block())
@@ -1128,11 +1131,46 @@ class StartScreen:
         return self.surface_text
 
 
+class LevelSelection:
+    audio_swap = pygame.mixer.Sound('audio/level_selection_swap.wav')
+    audio_select = pygame.mixer.Sound('audio/level_selection_confirm.wav')
+    surface_window = pygame.image.load('res/select_level.png')
+    rect_window = surface_window.get_rect(center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 2))
+    topleft_x, topleft_y = rect_window.topleft
+    print(topleft_x, topleft_y)
+
+
+    def __init__(self):
+        self.selected_level = 0
+        self.rect_buttons = [pygame.rect.Rect((self.topleft_x + 16 + (9 + 40) * i, self.topleft_y + 51), (40, 40)) for i in range(10)]
+        self.rect_buttons += [pygame.rect.Rect((self.topleft_x + 16 + (9 + 40) * i, self.topleft_y + 112), (40, 40)) for i in
+                         range(10)]
+        self.rect_start_button = pygame.rect.Rect((self.topleft_x + 207, self.topleft_y + 167), (100, 28))
+
+    def render(self):
+        screen.blit(self.surface_window, self.rect_window)
+        pygame.draw.ellipse(screen, 'black', self.rect_buttons[self.selected_level], 1)
+
+    def check_pos(self, pos):
+        for i in range(len(self.rect_buttons)):
+            if self.rect_buttons[i].collidepoint(pos):
+                self.selected_level = i
+                self.audio_swap.play()
+        if self.rect_start_button.collidepoint(pos):
+            self.audio_select.play()
+            return True
+        return False
+
+    def get_selected_level(self):
+        return self.selected_level + 1
+
+
 FALL_BLOCK_EVENT = pygame.event.custom_type()
 
 background = Background()
 program_state = Constants.START_SCREEN
 start_screen = StartScreen()
+level_selection, game = None, None
 
 pygame.mixer.music.load('music/menu_theme.mp3')
 pygame.mixer.music.play(-1)
@@ -1146,13 +1184,25 @@ while True:
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_f:
-                    program_state = Constants.INGAME
-                    game = Game(14)
+                    program_state = Constants.LEVEL_SELECT
+                    level_selection = LevelSelection()
 
         screen.blit(StartScreen.surface_tetris_logo, StartScreen.rect_tetris_logo)
         screen.blit(start_screen.get_surface_text(), StartScreen.rect_text)
 
-    if program_state == Constants.INGAME:
+    elif program_state == Constants.LEVEL_SELECT:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if level_selection.check_pos(event.pos):
+                    game = Game(level_selection.get_selected_level())
+                    program_state = Constants.INGAME
+
+        level_selection.render()
+
+    elif program_state == Constants.INGAME:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
