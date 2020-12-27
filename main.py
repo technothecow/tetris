@@ -284,8 +284,20 @@ class Block:
         screen.blit(self.get_sprite(), (Constants.BOARD_TOPLEFT[0] + Constants.SIDE_LENGTH * self.position[0],
                                         Constants.BOARD_TOPLEFT[1] + Constants.SIDE_LENGTH * self.position[1]))
 
+        temp = self.get_sprite().copy()
+        temp.set_alpha(50)
+        temp_position = self.position.copy()
+        while temp_position[1] + self.get_height() < Constants.BOARD_SIZE[1] and game.board.check_under(temp_position,
+                                                                                                        self.get_under()):
+            temp_position[1] += 1
+        screen.blit(temp, (Constants.BOARD_TOPLEFT[0] + Constants.SIDE_LENGTH * temp_position[0],
+                           Constants.BOARD_TOPLEFT[1] + Constants.SIDE_LENGTH * temp_position[1]))
+
+    def get_under(self):
+        return [0]
+
     def get_sprite(self):
-        pass
+        return self.sprite_I.image
 
     def move_right(self):
         if self.position[0] < Constants.BOARD_SIZE[0]:
@@ -343,6 +355,12 @@ class Block:
                 pygame.time.set_timer(game.BLOCK_ANCHOR, 3000, 1)
                 return
         self.audio_rotate.play()
+
+    def get_length(self):
+        return len(self.get_pattern()[0])
+
+    def get_height(self):
+        return len(self.get_pattern())
 
 
 class BlockI(Block):
@@ -403,15 +421,9 @@ class BlockI(Block):
             return pygame.transform.rotate(self.sprite.image, 90)
 
     def check_bottom(self):
-        if self.status == 0:
-            length = 1
-            height = 4
-        else:
-            length = 4
-            height = 1
-        if self.position[1] >= Constants.BOARD_SIZE[1] - height:
+        if self.position[1] >= Constants.BOARD_SIZE[1] - self.get_height():
             return False
-        if sum(game.board.get_line(self.position, length, height)) == 0:
+        if sum(game.board.get_line(self.position, self.get_length(), self.get_height())) == 0:
             return True
         return False
 
@@ -423,6 +435,12 @@ class BlockI(Block):
                     [Constants.I]]
         else:
             return [[Constants.I, Constants.I, Constants.I, Constants.I]]
+
+    def get_under(self):
+        if self.status == 0:
+            return [4]
+        elif self.status == 1:
+            return [1, 1, 1, 1]
 
 
 class BlockJ(Block):
@@ -669,6 +687,10 @@ class BlockO(Block):
     def get_pattern(self):
         return [[Constants.O, Constants.O],
                 [Constants.O, Constants.O]]
+
+    def get_under(self):
+        if self.status == 0:
+            return [2, 2]
 
 
 class BlockS(Block):
@@ -1137,14 +1159,14 @@ class LevelSelection:
     surface_window = pygame.image.load('res/select_level.png')
     rect_window = surface_window.get_rect(center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 2))
     topleft_x, topleft_y = rect_window.topleft
-    print(topleft_x, topleft_y)
-
 
     def __init__(self):
         self.selected_level = 0
-        self.rect_buttons = [pygame.rect.Rect((self.topleft_x + 16 + (9 + 40) * i, self.topleft_y + 51), (40, 40)) for i in range(10)]
-        self.rect_buttons += [pygame.rect.Rect((self.topleft_x + 16 + (9 + 40) * i, self.topleft_y + 112), (40, 40)) for i in
-                         range(10)]
+        self.rect_buttons = [pygame.rect.Rect((self.topleft_x + 16 + (9 + 40) * i, self.topleft_y + 51), (40, 40)) for i
+                             in range(10)]
+        self.rect_buttons += [pygame.rect.Rect((self.topleft_x + 16 + (9 + 40) * i, self.topleft_y + 112), (40, 40)) for
+                              i in
+                              range(10)]
         self.rect_start_button = pygame.rect.Rect((self.topleft_x + 207, self.topleft_y + 167), (100, 28))
 
     def render(self):
