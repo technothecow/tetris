@@ -17,6 +17,7 @@ class Constants:
     LINES_CLEARED_TOPLEFT = (400, 230)
     LINES_TILL_NEXT_LEVEL_TOPLEFT = (400, 330)
     BLOCK_FALL_TIMER = 3000
+    BLOCK_QUEUE_TOPLEFT = (400, 400)
 
 
 class Settings:
@@ -326,6 +327,7 @@ class Block:
                     self.position[1] -= 1
             else:
                 self.audio_rotate_2.play()
+                pygame.time.set_timer(game.BLOCK_ANCHOR, 3000, 1)
                 return
         self.audio_rotate.play()
 
@@ -881,6 +883,7 @@ class CurrentBlock:
 
     def set_block(self, block):
         self.block = block
+        pygame.time.set_timer(game.BLOCK_ANCHOR, 100000, 0)
 
 
 class Game:
@@ -901,6 +904,7 @@ class Game:
         self.combo = 0
         self.BLOCK_ANCHOR = pygame.event.custom_type()
         self.load_music()
+        self.block_queue = BlockQueue()
 
     def load_music(self):
         if self.current_level < 10:
@@ -943,8 +947,7 @@ class Game:
         self.check_level()
 
     def next_block(self):
-        self.current_block.set_block(
-            random.choice([BlockI(), BlockJ(), BlockL(), BlockO(), BlockS(), BlockT(), BlockZ()]))
+        self.current_block.set_block(self.block_queue.pop(0))
 
     def level_up(self):
         self.current_level += 1
@@ -975,9 +978,29 @@ class Game:
                 self.level_up()
 
 
+def get_random_block():
+    return random.choice([BlockI(), BlockJ(), BlockL(), BlockO(), BlockS(), BlockT(), BlockZ()])
+
+
+class BlockQueue:
+    def __init__(self):
+        self.queue = list()
+        for i in range(6):
+            self.queue.append(get_random_block())
+
+    def pop(self, index):
+        self.queue.append(get_random_block())
+        return self.queue.pop(index)
+
+    def render(self):
+        for i in range(len(self.queue)):
+            screen.blit(self.queue[i].get_sprite(),
+                        (Constants.BLOCK_QUEUE_TOPLEFT[0], Constants.BLOCK_QUEUE_TOPLEFT[1] + i * 70))
+
+
 FALL_BLOCK_EVENT = pygame.event.custom_type()
 
-game = Game(14)
+game = Game(15)
 
 while True:
     for event in pygame.event.get():
@@ -1021,6 +1044,7 @@ while True:
         game.current_block.block.draw()
         game.board.check_lose()
         game.draw_score()
+        game.block_queue.render()
 
     clock.tick(15)
     pygame.display.update()
