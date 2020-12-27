@@ -287,8 +287,8 @@ class Block:
         temp = self.get_sprite().copy()
         temp.set_alpha(50)
         temp_position = self.position.copy()
-        while temp_position[1] + self.get_height() < Constants.BOARD_SIZE[1] and game.board.check_under(temp_position,
-                                                                                                        self.get_under()):
+        while temp_position[1] + self.get_height() < Constants.BOARD_SIZE[1] and \
+                game.board.check_under(temp_position, self.get_under()):
             temp_position[1] += 1
         screen.blit(temp, (Constants.BOARD_TOPLEFT[0] + Constants.SIDE_LENGTH * temp_position[0],
                            Constants.BOARD_TOPLEFT[1] + Constants.SIDE_LENGTH * temp_position[1]))
@@ -981,21 +981,70 @@ class Game:
 
     surface_scoreboard = pygame.image.load('res/scoreboard.png').convert_alpha()
 
+    audio_ready = pygame.mixer.Sound('audio/ready.wav')
+    audio_count = pygame.mixer.Sound('audio/count.wav')
+    audio_go = pygame.mixer.Sound('audio/go.wav')
+    audio_game_start = pygame.mixer.Sound('audio/game_start.wav')
+
     def __init__(self, level):
+        pygame.mixer.music.stop()
         self.lines_cleared = 0
         self.lines_cleared_from_last_level = 0
         self.score = 0
-        self.current_block = CurrentBlock()
         self.board = Board(Constants.SIDE_LENGTH, Constants.BOARD_TOPLEFT)
-        self.current_level = level
         self.lose = False
-        self.font = pygame.font.Font('fonts/Orbitron-Bold.ttf', Constants.FONT_SIZE)
         self.combo = 0
-        self.BLOCK_ANCHOR = pygame.event.custom_type()
-        self.load_music()
+        self.font = pygame.font.Font('fonts/Orbitron-Bold.ttf', Constants.FONT_SIZE)
+        self.current_level = level
+        self.start_time = pygame.time.get_ticks()
+
         self.block_queue = BlockQueue()
+        self.current_block = CurrentBlock()
+        self.BLOCK_ANCHOR = pygame.event.custom_type()
+
         self.locked = False
         pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // level)
+
+    def get_current_time(self):
+        return pygame.time.get_ticks() - self.start_time
+
+    def is_countdown(self):
+        return self.get_current_time() < 4700
+
+    def countdown(self):
+        if 0 <= self.get_current_time() < 100:
+            self.audio_ready.play()
+        elif 1000 <= self.get_current_time() < 1100:
+            self.audio_count.play()
+        elif 2000 <= self.get_current_time() < 2100:
+            self.audio_count.play()
+        elif 3000 <= self.get_current_time() < 3100:
+            self.audio_count.play()
+        elif 4000 <= self.get_current_time() < 4100:
+            self.audio_go.play()
+        elif 4500 <= self.get_current_time() < 4600:
+            self.audio_game_start.play()
+        elif 4600 <= self.get_current_time() < 4700:
+            self.load_music()
+
+        text = None
+
+        if 0 <= self.get_current_time() < 1000:
+            text = 'READY'
+        elif 1000 <= self.get_current_time() < 2000:
+            text = '3'
+        elif 2000 <= self.get_current_time() < 3000:
+            text = '2'
+        elif 3000 <= self.get_current_time() < 4000:
+            text = '1'
+        elif 4000 <= self.get_current_time() < 4500:
+            text = 'GO'
+
+        surface_text = self.font.render(text, True, (255, 255, 255))
+        rect_text = surface_text.get_rect(center=(
+                (Constants.BOARD_TOPLEFT[0] + Constants.BOARD_SIZE[0] * Constants.SIDE_LENGTH) // 3 * 2,
+                (Constants.BOARD_TOPLEFT[1] + Constants.BOARD_SIZE[1] * Constants.SIDE_LENGTH) // 3))
+        screen.blit(surface_text, rect_text)
 
     def may_lock(self):
         return not self.locked
@@ -1250,22 +1299,30 @@ while True:
                 elif event.key == Settings.MOVE_DOWN_BUTTON:
                     game.current_block.move_down = False
             elif event.type == FALL_BLOCK_EVENT and not game.lose:
-                game.current_block.block.fall()
+                try:
+                    game.current_block.block.fall()
+                except AttributeError:
+                    pass
             elif event.type == game.BLOCK_ANCHOR and not game.lose:
                 if game.current_block.block.timer_set:
                     game.current_block.block.hard_drop(False)
 
-        if not game.lose:
-            if game.current_block.block is None:
-                game.next_block()
-
-            game.current_block.update()
-
+        if game.is_countdown():
             game.board.draw_board()
-            game.current_block.block.draw()
-            game.board.check_lose()
             game.draw_score()
-            game.block_queue.render()
+            game.countdown()
+        else:
+            if not game.lose:
+                if game.current_block.block is None:
+                    game.next_block()
+
+                game.current_block.update()
+
+                game.board.draw_board()
+                game.current_block.block.draw()
+                game.board.check_lose()
+                game.draw_score()
+                game.block_queue.render()
 
     clock.tick(Constants.FPS)
     pygame.display.update()
