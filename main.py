@@ -350,7 +350,8 @@ class BlockI(Block):
         self.status = 1
 
     def get_self(self):
-        return BlockI()
+        if self:
+            return BlockI()
 
     def get_sprite_for_frame(self):
         return pygame.transform.scale(self.get_sprite(), (18 * 4, 18))
@@ -428,7 +429,8 @@ class BlockJ(Block):
         self.sprite = self.sprite_J
 
     def get_self(self):
-        return BlockJ()
+        if self:
+            return BlockJ()
 
     def get_sprite_for_frame(self):
         return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
@@ -526,7 +528,8 @@ class BlockL(Block):
         self.sprite = self.sprite_L
 
     def get_self(self):
-        return BlockL()
+        if self:
+            return BlockL()
 
     def get_sprite_for_frame(self):
         return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
@@ -624,7 +627,8 @@ class BlockO(Block):
         self.sprite = self.sprite_O
 
     def get_self(self):
-        return BlockO()
+        if self:
+            return BlockO()
 
     def get_sprite_for_frame(self):
         return pygame.transform.scale(self.get_sprite(), (18 * 2, 18 * 2))
@@ -671,7 +675,8 @@ class BlockS(Block):
         self.sprite = self.sprite_S
 
     def get_self(self):
-        return BlockS()
+        if self:
+            return BlockS()
 
     def get_sprite_for_frame(self):
         return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
@@ -746,7 +751,8 @@ class BlockT(Block):
         self.sprite = self.sprite_T
 
     def get_self(self):
-        return BlockT()
+        if self:
+            return BlockT()
 
     def get_sprite_for_frame(self):
         return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
@@ -845,7 +851,8 @@ class BlockZ(Block):
         self.sprite = self.sprite_Z
 
     def get_self(self):
-        return BlockZ()
+        if self:
+            return BlockZ()
 
     def get_sprite_for_frame(self):
         return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
@@ -978,16 +985,16 @@ class Game:
 
     def draw_score(self):
         screen.blit(self.surface_scoreboard, Constants.SCORE_FRAME_TOPLEFT)
-        surface = self.font.render(str(self.score), True, 'black')
+        surface = self.font.render(str(self.score), True, (0, 0, 0))
         rect = surface.get_rect(topleft=Constants.SCORE_TOPLEFT)
         screen.blit(surface, rect)
-        surface = self.font.render(str(self.current_level), True, 'black')
+        surface = self.font.render(str(self.current_level), True, (0, 0, 0))
         rect = surface.get_rect(topleft=Constants.CURRENT_LEVEL_TOPLEFT)
         screen.blit(surface, rect)
-        surface = self.font.render(str(self.lines_cleared), True, 'black')
+        surface = self.font.render(str(self.lines_cleared), True, (0, 0, 0))
         rect = surface.get_rect(topleft=Constants.TOTAL_LINES_TOPLEFT)
         screen.blit(surface, rect)
-        surface = self.font.render(str(self.get_lines_to_next_level()), True, 'black')
+        surface = self.font.render(str(self.get_lines_to_next_level()), True, (0, 0, 0))
         rect = surface.get_rect(topleft=Constants.LINES_TILL_NEXT_LEVEL_TOPLEFT)
         screen.blit(surface, rect)
 
