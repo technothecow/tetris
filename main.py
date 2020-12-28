@@ -25,7 +25,7 @@ class Constants:
     BLOCK_FALL_TIMER = 3000
     BLOCK_QUEUE_TOPLEFT = (FRAME_TOPLEFT[0] + 436, FRAME_TOPLEFT[1] + 34)
     LOCKED_BLOCK_TOPLEFT = (FRAME_TOPLEFT[0] + 19, FRAME_TOPLEFT[1] + 54)
-    FPS = 20
+    FPS = 18
 
 
 class Settings:
@@ -325,6 +325,7 @@ class Block:
             self.audio_fall.play()
         self.anchor()
         pygame.time.set_timer(game.BLOCK_ANCHOR, 1000000, 0)
+        return self.position, self.get_length(), self.get_height()
 
     def anchor(self):
         game.board.anchor_block(self.position, self.get_pattern())
@@ -1014,11 +1015,11 @@ class Game:
     def countdown(self):
         if 0 <= self.get_current_time() < 100:
             self.audio_ready.play()
-        elif 1000 <= self.get_current_time() < 1100:
+        elif 1000 <= self.get_current_time() < 1050:
             self.audio_count.play()
-        elif 2000 <= self.get_current_time() < 2100:
+        elif 2000 <= self.get_current_time() < 2050:
             self.audio_count.play()
-        elif 3000 <= self.get_current_time() < 3100:
+        elif 3000 <= self.get_current_time() < 3050:
             self.audio_count.play()
         elif 4000 <= self.get_current_time() < 4100:
             self.audio_go.play()
@@ -1042,8 +1043,8 @@ class Game:
 
         surface_text = self.font.render(text, True, (255, 255, 255))
         rect_text = surface_text.get_rect(center=(
-                (Constants.BOARD_TOPLEFT[0] + Constants.BOARD_SIZE[0] * Constants.SIDE_LENGTH) // 3 * 2,
-                (Constants.BOARD_TOPLEFT[1] + Constants.BOARD_SIZE[1] * Constants.SIDE_LENGTH) // 3))
+            (Constants.BOARD_TOPLEFT[0] + Constants.BOARD_SIZE[0] * Constants.SIDE_LENGTH) // 3 * 2,
+            (Constants.BOARD_TOPLEFT[1] + Constants.BOARD_SIZE[1] * Constants.SIDE_LENGTH) // 3))
         screen.blit(surface_text, rect_text)
 
     def may_lock(self):
@@ -1240,16 +1241,38 @@ class LevelSelection:
         return self.selected_level + 1
 
 
+class HardDropParticle(pygame.sprite.Sprite):
+    image = pygame.image.load('res/beam.png').convert_alpha()
+
+    def __init__(self, pos, length, heigth):
+        super().__init__(particles)
+        self.image = pygame.transform.scale(self.image,
+                                            (Constants.SIDE_LENGTH * length, (pos[1] + heigth) * Constants.SIDE_LENGTH))
+        self.rect = pygame.rect.Rect((Constants.BOARD_TOPLEFT[0] + pos[0] * Constants.SIDE_LENGTH,
+                                      Constants.BOARD_TOPLEFT[1]),
+                                     (Constants.SIDE_LENGTH * length, (pos[1] + heigth) * Constants.SIDE_LENGTH))
+        self.start_time = pygame.time.get_ticks()
+
+    def get_current_time(self):
+        return pygame.time.get_ticks() - self.start_time
+
+    def update(self):
+        self.image.set_alpha(70 - self.get_current_time() // 5)
+        if self.image.get_alpha() == 0:
+            self.kill()
+            del self
+
+
 FALL_BLOCK_EVENT = pygame.event.custom_type()
 
 background = Background()
-program_state = Constants.START_SCREEN
 start_screen = StartScreen()
+program_state = Constants.START_SCREEN
 level_selection, game = None, None
+particles = pygame.sprite.Group()
 
 pygame.mixer.music.load('music/menu_theme.mp3')
 pygame.mixer.music.play(-1)
-
 while True:
     background.render()
     if program_state == Constants.START_SCREEN:
@@ -1290,7 +1313,7 @@ while True:
                 elif event.key == Settings.ROTATE_LEFT_BUTTON:
                     game.current_block.block.rotate()
                 elif event.key == Settings.HARD_DROP_BUTTON:
-                    game.current_block.block.hard_drop(True)
+                    hard_drop_particle = HardDropParticle(*game.current_block.block.hard_drop(True))
                 elif event.key == Settings.MOVE_DOWN_BUTTON:
                     game.current_block.move_down = True
                 elif event.key == Settings.LOCK_BLOCK_BUTTON and game.may_lock():
@@ -1327,6 +1350,9 @@ while True:
                 game.board.check_lose()
                 game.draw_score()
                 game.block_queue.render()
+
+                particles.update()
+                particles.draw(screen)
 
     clock.tick(Constants.FPS)
     pygame.display.update()
