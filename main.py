@@ -1083,6 +1083,8 @@ class Game:
             return 20 - self.lines_cleared_from_last_level
         elif 15 <= self.current_level < 20:
             return 30 - self.lines_cleared_from_last_level
+        elif self.current_level == 20:
+            return "Infinite"
 
     def add_cleared_lines(self, lines):
         self.lines_cleared += lines
@@ -1117,7 +1119,7 @@ class Game:
                 if self.current_level == 15:
                     pygame.mixer.music.load('music/default/main_theme_3.mp3')
                     pygame.mixer.music.play(-1)
-            elif 15 <= self.current_level <= 20 and self.lines_cleared_from_last_level >= 30:
+            elif 15 <= self.current_level < 20 and self.lines_cleared_from_last_level >= 30:
                 self.lines_cleared_from_last_level -= 30
                 self.level_up()
 
@@ -1225,8 +1227,10 @@ class LevelSelection:
     def check_pos(self, pos):
         for i in range(len(self.rect_buttons)):
             if self.rect_buttons[i].collidepoint(pos):
-                self.selected_level = i
-                self.audio_swap.play()
+                if self.selected_level != i:
+                    self.selected_level = i
+                    self.audio_swap.play()
+                return
         if self.rect_start_button.collidepoint(pos):
             self.audio_select.play()
             return True
