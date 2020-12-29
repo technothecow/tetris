@@ -5,7 +5,7 @@ import pygame
 
 class Constants:
     I, J, L, O, S, T, Z = 1, 2, 3, 4, 5, 6, 7
-    MAIN_MENU, SETTINGS, START_SCREEN, SHOP, PAUSE, INGAME, LEVEL_SELECT = 1, 2, 3, 4, 5, 6, 7
+    MAIN_MENU, SETTINGS, START_SCREEN, SHOP, PAUSE, INGAME, LEVEL_SELECT, PROFILE = 1, 2, 3, 4, 5, 6, 7, 8
     SIDE_LENGTH = 32
     HD = (1280, 720)
     FULL_HD = (1920, 1080)
@@ -313,7 +313,7 @@ class Block:
         else:
             if not self.timer_set:
                 self.timer_set = True
-                pygame.time.set_timer(game.BLOCK_ANCHOR, Constants.BLOCK_FALL_TIMER, 1)
+                pygame.time.set_timer(game.BLOCK_ANCHOR, Constants.BLOCK_FALL_TIMER, True)
 
     def hard_drop(self, sound):
         while self.check_bottom():
@@ -324,7 +324,7 @@ class Block:
         else:
             self.audio_fall.play()
         self.anchor()
-        pygame.time.set_timer(game.BLOCK_ANCHOR, 1000000, 0)
+        pygame.time.set_timer(game.BLOCK_ANCHOR, 0)
         return self.position, self.get_length(), self.get_height()
 
     def anchor(self):
@@ -353,7 +353,7 @@ class Block:
                     self.position[1] -= 1
             else:
                 self.audio_rotate_2.play()
-                pygame.time.set_timer(game.BLOCK_ANCHOR, 3000, 1)
+                pygame.time.set_timer(game.BLOCK_ANCHOR, Constants.BLOCK_FALL_TIMER, True)
                 return
         self.audio_rotate.play()
 
@@ -972,7 +972,7 @@ class CurrentBlock:
 
     def set_block(self, block):
         self.block = block
-        pygame.time.set_timer(game.BLOCK_ANCHOR, 100000, 0)
+        pygame.time.set_timer(game.BLOCK_ANCHOR, 0)
 
 
 class Game:
@@ -1015,11 +1015,11 @@ class Game:
     def countdown(self):
         if 0 <= self.get_current_time() < 100:
             self.audio_ready.play()
-        elif 1000 <= self.get_current_time() < 1050:
+        elif 1000 <= self.get_current_time() < 1080:
             self.audio_count.play()
-        elif 2000 <= self.get_current_time() < 2050:
+        elif 2000 <= self.get_current_time() < 2080:
             self.audio_count.play()
-        elif 3000 <= self.get_current_time() < 3050:
+        elif 3000 <= self.get_current_time() < 3080:
             self.audio_count.play()
         elif 4000 <= self.get_current_time() < 4100:
             self.audio_go.play()
@@ -1051,11 +1051,11 @@ class Game:
         return not self.locked
 
     def load_music(self):
-        if self.current_level < 10:
+        if self.current_level <= 10:
             pygame.mixer.music.load('music/default/main_theme.ogg')
-        elif 10 <= self.current_level < 15:
+        elif 10 < self.current_level <= 15:
             pygame.mixer.music.load('music/default/main_theme_2.ogg')
-        elif 15 <= self.current_level <= 20:
+        elif 15 < self.current_level <= 20:
             pygame.mixer.music.load('music/default/main_theme_3.mp3')
         pygame.mixer.music.play(-1)
 
@@ -1078,11 +1078,11 @@ class Game:
         screen.blit(surface, rect)
 
     def get_lines_to_next_level(self):
-        if self.current_level < 10:
+        if self.current_level <= 10:
             return 10 - self.lines_cleared_from_last_level
-        elif 10 <= self.current_level < 15:
+        elif 10 < self.current_level <= 15:
             return 20 - self.lines_cleared_from_last_level
-        elif 15 <= self.current_level < 20:
+        elif 15 < self.current_level < 20:
             return 30 - self.lines_cleared_from_last_level
         elif self.current_level == 20:
             return "Infinite"
@@ -1108,19 +1108,19 @@ class Game:
 
     def check_level(self):
         if self.lines_cleared_from_last_level >= 10:
-            if self.current_level < 10:
+            if self.current_level <= 10:
                 self.lines_cleared_from_last_level -= 10
                 self.level_up()
-                if self.current_level == 10:
+                if self.current_level == 11:
                     pygame.mixer.music.load('music/default/main_theme_2.ogg')
                     pygame.mixer.music.play(-1)
-            elif 10 <= self.current_level < 15 and self.lines_cleared_from_last_level >= 20:
+            elif 10 < self.current_level <= 15 and self.lines_cleared_from_last_level >= 20:
                 self.lines_cleared_from_last_level -= 20
                 self.level_up()
-                if self.current_level == 15:
+                if self.current_level == 16:
                     pygame.mixer.music.load('music/default/main_theme_3.mp3')
                     pygame.mixer.music.play(-1)
-            elif 15 <= self.current_level < 20 and self.lines_cleared_from_last_level >= 30:
+            elif 15 < self.current_level < 20 and self.lines_cleared_from_last_level >= 30:
                 self.lines_cleared_from_last_level -= 30
                 self.level_up()
 
@@ -1180,7 +1180,7 @@ class Background:
 
 
 class StartScreen:
-    surface_tetris_logo = pygame.image.load('res/tetris_logo.png').convert()
+    surface_tetris_logo = pygame.image.load('res/tetris_logo_remaster.png').convert_alpha()
     rect_tetris_logo = surface_tetris_logo.get_rect(
         center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 4))
     font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', 40)
@@ -1244,13 +1244,13 @@ class LevelSelection:
 class HardDropParticle(pygame.sprite.Sprite):
     image = pygame.image.load('res/beam.png').convert_alpha()
 
-    def __init__(self, pos, length, heigth):
+    def __init__(self, pos, length, height):
         super().__init__(particles)
         self.image = pygame.transform.scale(self.image,
-                                            (Constants.SIDE_LENGTH * length, (pos[1] + heigth) * Constants.SIDE_LENGTH))
+                                            (Constants.SIDE_LENGTH * length, (pos[1] + height) * Constants.SIDE_LENGTH))
         self.rect = pygame.rect.Rect((Constants.BOARD_TOPLEFT[0] + pos[0] * Constants.SIDE_LENGTH,
                                       Constants.BOARD_TOPLEFT[1]),
-                                     (Constants.SIDE_LENGTH * length, (pos[1] + heigth) * Constants.SIDE_LENGTH))
+                                     (Constants.SIDE_LENGTH * length, (pos[1] + height) * Constants.SIDE_LENGTH))
         self.start_time = pygame.time.get_ticks()
 
     def get_current_time(self):
@@ -1263,16 +1263,102 @@ class HardDropParticle(pygame.sprite.Sprite):
             del self
 
 
+class MainMenu:
+    surface_light = pygame.image.load('res/light.png').convert_alpha()
+
+    def __init__(self):
+        self.buttons = list()
+        self.surfaces = list()
+        self.selected_button = None
+        self.transition = True
+        self.transcript = {0: Constants.PROFILE, 1: Constants.LEVEL_SELECT, 2: Constants.SHOP, 3: Constants.SETTINGS,
+                           4: -1}
+        self.confirm_exit = False
+        self.surface_tetris_logo = StartScreen.surface_tetris_logo
+        self.rect_tetris_logo = StartScreen.rect_tetris_logo
+        self.font_buttons = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', 60)
+        self.load_buttons()
+
+    def is_transition(self):
+        return self.transition
+
+    def do_transition(self):
+        if self.rect_tetris_logo.centery > Constants.WINDOW_SIZE[1] // 5:
+            self.rect_tetris_logo.centery -= 3
+        else:
+            self.transition = False
+
+    def load_buttons(self):
+        surface_profile = pygame.surface.Surface((Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 10))
+        rect_profile = surface_profile.get_rect(topright=(Constants.WINDOW_SIZE[0], 0))
+        self.buttons.append([surface_profile, rect_profile])
+        surface_play = self.font_buttons.render('Play', True, (255, 255, 255))
+        rect_play = surface_play.get_rect(center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 10 * 4))
+        self.buttons.append([surface_play, rect_play])
+        surface_shop = self.font_buttons.render('Shop', True, (255, 255, 255))
+        rect_shop = surface_shop.get_rect(center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 10 * 5))
+        self.buttons.append([surface_shop, rect_shop])
+        surface_settings = self.font_buttons.render('Settings', True, (255, 255, 255))
+        rect_settings = surface_settings.get_rect(
+            center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 10 * 6))
+        self.buttons.append([surface_settings, rect_settings])
+        surface_exit = self.font_buttons.render('Exit', True, (255, 255, 255))
+        rect_exit = surface_exit.get_rect(center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 10 * 7))
+        self.buttons.append([surface_exit, rect_exit])
+
+    def get_covered(self, pos):
+        for i in range(1, 5):
+            if self.buttons[i][1].collidepoint(pos):
+                self.selected_button = i
+
+    def get_clicked(self, pos):
+        for i in range(len(self.buttons)):
+            if self.buttons[i][1].collidepoint(pos):
+                return self.transcript[i]
+        return None
+
+    def draw_buttons(self):
+        for button in self.buttons:
+            screen.blit(button[0], button[1])
+
+    def button_down(self):
+        if self.selected_button:
+            if self.selected_button < 4:
+                self.selected_button += 1
+
+    def button_up(self):
+        if self.selected_button:
+            if self.selected_button > 1:
+                self.selected_button -= 1
+
+    def button_select(self):
+        if self.selected_button:
+            return self.transcript[self.selected_button]
+
+    def render(self):
+        if self.is_transition():
+            self.do_transition()
+        else:
+            if self.selected_button:
+                screen.blit(
+                    pygame.transform.scale(self.surface_light, (
+                        self.buttons[self.selected_button][1].width, self.buttons[self.selected_button][1].height)),
+                    self.buttons[self.selected_button][1])
+            self.draw_buttons()
+        screen.blit(self.surface_tetris_logo, self.rect_tetris_logo)
+
+
 FALL_BLOCK_EVENT = pygame.event.custom_type()
 
 background = Background()
 start_screen = StartScreen()
 program_state = Constants.START_SCREEN
-level_selection, game = None, None
+level_selection, game, menu = None, None, None
 particles = pygame.sprite.Group()
 
 pygame.mixer.music.load('music/menu_theme.mp3')
 pygame.mixer.music.play(-1)
+
 while True:
     background.render()
     if program_state == Constants.START_SCREEN:
@@ -1282,13 +1368,36 @@ while True:
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_f:
-                    program_state = Constants.LEVEL_SELECT
-                    level_selection = LevelSelection()
+                    menu = MainMenu()
+                    program_state = Constants.MAIN_MENU
 
         screen.blit(StartScreen.surface_tetris_logo, StartScreen.rect_tetris_logo)
         screen.blit(start_screen.get_surface_text(), StartScreen.rect_text)
 
+    elif program_state == Constants.MAIN_MENU:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_DOWN:
+                    menu.button_down()
+                elif event.key == pygame.K_UP:
+                    menu.button_up()
+                elif event.key == 13:
+                    response = menu.button_select()
+                    program_state = response if response is not None else Constants.MAIN_MENU
+            elif event.type == pygame.MOUSEMOTION:
+                menu.get_covered(event.pos)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                response = menu.get_clicked(event.pos)
+                program_state = response if response is not None else Constants.MAIN_MENU
+
+        menu.render()
+
     elif program_state == Constants.LEVEL_SELECT:
+        if level_selection is None:
+            level_selection = LevelSelection()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
