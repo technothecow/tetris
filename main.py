@@ -6,6 +6,7 @@ import pygame
 class Constants:
     I, J, L, O, S, T, Z = 1, 2, 3, 4, 5, 6, 7
     MAIN_MENU, SETTINGS, START_SCREEN, SHOP, PAUSE, INGAME, LEVEL_SELECT, PROFILE = 1, 2, 3, 4, 5, 6, 7, 8
+    ENDSCREEN = 9
     SIDE_LENGTH = 32
     HD = (1280, 720)
     FULL_HD = (1920, 1080)
@@ -26,6 +27,8 @@ class Constants:
     BLOCK_QUEUE_TOPLEFT = (FRAME_TOPLEFT[0] + 436, FRAME_TOPLEFT[1] + 34)
     LOCKED_BLOCK_TOPLEFT = (FRAME_TOPLEFT[0] + 19, FRAME_TOPLEFT[1] + 54)
     FPS = 18
+
+    MUSIC_MAIN_MENU = 'music/menu_theme.mp3'
 
 
 class Settings:
@@ -140,6 +143,7 @@ class Board:
         return True
 
     def anchor_block(self, position, block_pattern):
+        game.blocks += 1
         for i in range(len(block_pattern)):
             for j in range(len(block_pattern[i])):
                 if block_pattern[i][j] != -1:
@@ -169,12 +173,16 @@ class Board:
             return
         elif len(lines) == 1:
             self.audio_single.play()
+            game.singles += 1
         elif len(lines) == 2:
             self.audio_double.play()
+            game.doubles += 1
         elif len(lines) == 3:
             self.audio_triple.play()
+            game.triples += 1
         elif len(lines) == 4:
             self.audio_tetris.play()
+            game.tetrises += 1
 
         for line in lines:
             i = line
@@ -184,6 +192,8 @@ class Board:
 
         if pygame.time.get_ticks() - self.last_time_destroyed < 5000:
             self.combo_counter += 1
+            if self.combo_counter > game.max_combo:
+                game.max_combo = self.combo_counter
         else:
             self.combo_counter = 0
 
@@ -349,9 +359,11 @@ class Block:
         if not game.board.check_collide(self.position, self.get_pattern()):
             self.position[1] += 1
             if not game.board.check_collide(self.position, self.get_pattern()):
-                while not game.board.check_collide(self.position, self.get_pattern()):
+                while not game.board.check_collide(self.position, self.get_pattern()) and self.position[1] > 0:
                     self.position[1] -= 1
             else:
+                game.tspins += 1
+                game.add_score(100 * game.current_level)
                 self.audio_rotate_2.play()
                 pygame.time.set_timer(game.BLOCK_ANCHOR, Constants.BLOCK_FALL_TIMER, True)
                 return
@@ -1006,6 +1018,9 @@ class Game:
         self.locked = False
         pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // level)
 
+        self.singles, self.doubles, self.triples, self.tetrises, self.blocks = 0, 0, 0, 0, 0
+        self.max_combo, self.tspins = 0, 0
+
     def get_current_time(self):
         return pygame.time.get_ticks() - self.start_time
 
@@ -1348,15 +1363,101 @@ class MainMenu:
         screen.blit(self.surface_tetris_logo, self.rect_tetris_logo)
 
 
+def get_time(ms):
+    ms = ms // 1000
+    return f'{ms // 60 // 60}:{ms // 60 % 60}:{ms % 60}'
+
+
+class EndGameScreen:
+    audio_ok = pygame.mixer.Sound('audio/ok.wav')
+    audio_gameover = pygame.mixer.Sound('audio/gameover.wav')
+
+    def __init__(self):
+        self.stats = [f'Score: {str(game.score)}', f'Lines cleared: {str(game.lines_cleared)}',
+                      f'Time played: {get_time(game.get_current_time())}', '', f'Blocks placed: {str(game.blocks)}',
+                      f'Max combo: {str(game.max_combo)}', f'T-spins: {str(game.tspins)}',
+                      f'Singles: {str(game.singles)}', f'Doubles: {str(game.doubles)}', f'Triples: {str(game.triples)}',
+                      f'Tetris lines cleared: {str(game.tetrises)}']
+        self.surface_frame = pygame.surface.Surface((500, 600))
+        self.rect_frame = self.surface_frame.get_rect(
+            center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 2))
+        self.text_font = pygame.font.Font('fonts/Orbitron-Bold.ttf', 25)
+        self.title_font = pygame.font.Font('fonts/Orbitron-Bold.ttf', 75)
+
+        self.surface_title = self.title_font.render('Game over!', True, (255, 255, 255))
+        self.rect_title = self.surface_title.get_rect(midtop=(500 // 2, 0))
+
+        self.surface_frame.fill((86, 233, 204))
+
+        self.surface_back_to_menu = pygame.transform.scale(
+            pygame.image.load('res/main_menu_button.png').convert_alpha(),
+            (246, 70))
+        self.rect_back_to_menu = self.surface_back_to_menu.get_rect(
+            center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 2 + 250))
+
+        self.start_time = pygame.time.get_ticks()
+        self.music_started = False
+        pygame.mixer.music.stop()
+
+        self.audio_gameover.play()
+
+        self.back_to_menu_pressed = False
+        self.fadeout_start_time = None
+        self.FADEOUT_TIME = 2000
+
+    def render(self):
+        if not self.music_started and pygame.time.get_ticks() - self.start_time > 6000:
+            self.music_started = True
+            pygame.mixer.music.load('music/eliminated.ogg')
+            pygame.mixer.music.play(-1)
+        screen.blit(self.surface_frame, self.rect_frame)
+        self.surface_frame.blit(self.surface_title, self.rect_title)
+        for i in range(len(self.stats)):
+            surface = self.text_font.render(self.stats[i], True, (255, 255, 255))
+            rect = surface.get_rect(midtop=(Constants.WINDOW_SIZE[0] // 2, 150 + 35 * i))
+            screen.blit(surface, rect)
+        screen.blit(self.surface_back_to_menu, self.rect_back_to_menu)
+        if self.fadeout_start_time is not None:
+            self.fadeout()
+
+    def check_pos(self, pos):
+        if self.rect_back_to_menu.collidepoint(pos) and not self.back_to_menu_pressed:
+            self.audio_ok.play()
+            self.back_to_menu_pressed = True
+            self.fadeout_start_time = pygame.time.get_ticks()
+
+    def fadeout(self):
+        time = self.get_time()
+        if time < self.FADEOUT_TIME:
+            surface = pygame.surface.Surface(Constants.WINDOW_SIZE)
+            surface.set_alpha(time // (self.FADEOUT_TIME // 255))
+            pygame.mixer.music.set_volume(Settings.MUSIC_VOLUME - time * (self.FADEOUT_TIME // Settings.MUSIC_VOLUME))
+            screen.blit(surface, (0, 0))
+        else:
+            global program_state
+            program_state = Constants.MAIN_MENU
+            pygame.mixer.music.load(Constants.MUSIC_MAIN_MENU)
+            pygame.mixer.music.set_volume(Settings.MUSIC_VOLUME)
+            pygame.mixer.music.play(-1)
+
+    def get_time(self):
+        return pygame.time.get_ticks() - self.fadeout_start_time
+
+
+def terminate():
+    pygame.quit()
+    sys.exit()
+
+
 FALL_BLOCK_EVENT = pygame.event.custom_type()
 
 background = Background()
 start_screen = StartScreen()
 program_state = Constants.START_SCREEN
-level_selection, game, menu = None, None, None
+level_selection, game, menu, gameover = None, None, None, None
 particles = pygame.sprite.Group()
 
-pygame.mixer.music.load('music/menu_theme.mp3')
+pygame.mixer.music.load(Constants.MUSIC_MAIN_MENU)
 pygame.mixer.music.play(-1)
 
 while True:
@@ -1364,8 +1465,7 @@ while True:
     if program_state == Constants.START_SCREEN:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+                terminate()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_f:
                     menu = MainMenu()
@@ -1377,8 +1477,7 @@ while True:
     elif program_state == Constants.MAIN_MENU:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+                terminate()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_DOWN:
                     menu.button_down()
@@ -1400,8 +1499,7 @@ while True:
             level_selection = LevelSelection()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+                terminate()
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if level_selection.check_pos(event.pos):
                     game = Game(level_selection.get_selected_level())
@@ -1412,33 +1510,38 @@ while True:
     elif program_state == Constants.INGAME:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+                terminate()
             elif event.type == pygame.KEYDOWN:
-                if event.key == Settings.MOVE_LEFT_BUTTON:
-                    game.current_block.move_left = True
-                elif event.key == Settings.MOVE_RIGHT_BUTTON:
-                    game.current_block.move_right = True
-                elif event.key == Settings.ROTATE_LEFT_BUTTON:
-                    game.current_block.block.rotate()
-                elif event.key == Settings.HARD_DROP_BUTTON:
-                    hard_drop_particle = HardDropParticle(*game.current_block.block.hard_drop(True))
-                elif event.key == Settings.MOVE_DOWN_BUTTON:
-                    game.current_block.move_down = True
-                elif event.key == Settings.LOCK_BLOCK_BUTTON and game.may_lock():
-                    game.block_queue.lock()
+                try:
+                    if event.key == Settings.MOVE_LEFT_BUTTON:
+                        game.current_block.move_left = True
+                    elif event.key == Settings.MOVE_RIGHT_BUTTON:
+                        game.current_block.move_right = True
+                    elif event.key == Settings.ROTATE_LEFT_BUTTON:
+                        game.current_block.block.rotate()
+                    elif event.key == Settings.HARD_DROP_BUTTON:
+                        hard_drop_particle = HardDropParticle(*game.current_block.block.hard_drop(True))
+                    elif event.key == Settings.MOVE_DOWN_BUTTON:
+                        game.current_block.move_down = True
+                    elif event.key == Settings.LOCK_BLOCK_BUTTON and game.may_lock():
+                        game.block_queue.lock()
+                except AttributeError:
+                    print(1)
             elif event.type == pygame.KEYUP:
-                if event.key == Settings.MOVE_LEFT_BUTTON:
-                    game.current_block.move_left = False
-                elif event.key == Settings.MOVE_RIGHT_BUTTON:
-                    game.current_block.move_right = False
-                elif event.key == Settings.MOVE_DOWN_BUTTON:
-                    game.current_block.move_down = False
+                try:
+                    if event.key == Settings.MOVE_LEFT_BUTTON:
+                        game.current_block.move_left = False
+                    elif event.key == Settings.MOVE_RIGHT_BUTTON:
+                        game.current_block.move_right = False
+                    elif event.key == Settings.MOVE_DOWN_BUTTON:
+                        game.current_block.move_down = False
+                except AttributeError:
+                    print(2)
             elif event.type == FALL_BLOCK_EVENT and not game.lose:
                 try:
                     game.current_block.block.fall()
                 except AttributeError:
-                    pass
+                    print(3)
             elif event.type == game.BLOCK_ANCHOR and not game.lose:
                 if game.current_block.block.timer_set:
                     game.current_block.block.hard_drop(False)
@@ -1462,6 +1565,21 @@ while True:
 
                 particles.update()
                 particles.draw(screen)
+            else:
+                gameover = EndGameScreen()
+                program_state = Constants.ENDSCREEN
+
+    elif program_state == Constants.ENDSCREEN:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                gameover.check_pos(event.pos)
+
+        gameover.render()
+
+    elif program_state == -1:
+        terminate()
 
     clock.tick(Constants.FPS)
     pygame.display.update()
