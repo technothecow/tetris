@@ -31,19 +31,6 @@ class Constants:
     MUSIC_MAIN_MENU = 'music/menu_theme.mp3'
 
 
-class Settings:
-    AUDIO_VOLUME = 100
-    MUSIC_VOLUME = 100
-
-    MOVE_LEFT_BUTTON = pygame.K_LEFT
-    MOVE_RIGHT_BUTTON = pygame.K_RIGHT
-    MOVE_DOWN_BUTTON = pygame.K_DOWN
-    ROTATE_LEFT_BUTTON = pygame.K_UP
-    ROTATE_RIGHT_BUTTON = pygame.K_q
-    HARD_DROP_BUTTON = pygame.K_SPACE
-    LOCK_BLOCK_BUTTON = 13
-
-
 pygame.mixer.pre_init()
 pygame.init()
 
@@ -172,15 +159,19 @@ class Board:
         if len(lines) == 0:
             return
         elif len(lines) == 1:
+            self.audio_single.set_volume(settings.AUDIO_VOLUME)
             self.audio_single.play()
             game.singles += 1
         elif len(lines) == 2:
+            self.audio_double.set_volume(settings.AUDIO_VOLUME)
             self.audio_double.play()
             game.doubles += 1
         elif len(lines) == 3:
+            self.audio_triple.set_volume(settings.AUDIO_VOLUME)
             self.audio_triple.play()
             game.triples += 1
         elif len(lines) == 4:
+            self.audio_tetris.set_volume(settings.AUDIO_VOLUME)
             self.audio_tetris.play()
             game.tetrises += 1
 
@@ -312,6 +303,7 @@ class Block:
     def move_right(self):
         if self.position[0] < Constants.BOARD_SIZE[0]:
             self.position[0] += 1
+        self.audio_move.set_volume(settings.AUDIO_VOLUME)
         self.audio_move.play()
 
     def rotate(self):
@@ -330,8 +322,10 @@ class Block:
             self.position[1] += 1
             game.score += 2
         if sound:
+            self.audio_hard_drop.set_volume(settings.AUDIO_VOLUME)
             self.audio_hard_drop.play()
         else:
+            self.audio_fall.set_volume(settings.AUDIO_VOLUME)
             self.audio_fall.play()
         self.anchor()
         pygame.time.set_timer(game.BLOCK_ANCHOR, 0)
@@ -350,6 +344,7 @@ class Block:
     def move_left(self):
         if self.position[0] > 0 and game.board.check_left(self.position, self.get_left_pattern()):
             self.position[0] -= 1
+            self.audio_move.set_volume(settings.AUDIO_VOLUME)
             self.audio_move.play()
 
     def get_left_pattern(self):
@@ -364,9 +359,12 @@ class Block:
             else:
                 game.tspins += 1
                 game.add_score(100 * game.current_level)
+                self.audio_rotate_2.set_volume(settings.AUDIO_VOLUME)
                 self.audio_rotate_2.play()
+                self.audio_rotate_2.set_volume(settings.AUDIO_VOLUME)
                 pygame.time.set_timer(game.BLOCK_ANCHOR, Constants.BLOCK_FALL_TIMER, True)
                 return
+        self.audio_rotate.set_volume(settings.AUDIO_VOLUME)
         self.audio_rotate.play()
 
     def get_length(self):
@@ -410,6 +408,7 @@ class BlockI(Block):
             return
         if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
+        self.audio_move.set_volume(settings.AUDIO_VOLUME)
         self.audio_move.play()
 
     def get_right_pattern(self):
@@ -483,6 +482,7 @@ class BlockJ(Block):
             return
         if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
+        self.audio_move.set_volume(settings.AUDIO_VOLUME)
         self.audio_move.play()
 
     def get_right_pattern(self):
@@ -582,6 +582,7 @@ class BlockL(Block):
             return
         if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
+        self.audio_move.set_volume(settings.AUDIO_VOLUME)
         self.audio_move.play()
 
     def get_right_pattern(self):
@@ -668,12 +669,14 @@ class BlockO(Block):
         return pygame.transform.scale(self.get_sprite(), (18 * 2, 18 * 2))
 
     def rotate(self):
+        self.audio_rotate.set_volume(settings.AUDIO_VOLUME)
         self.audio_rotate.play()
 
     def move_right(self):
         if self.position[0] < Constants.BOARD_SIZE[0] - 2 and game.board.check_right(self.position,
                                                                                      self.get_right_pattern()):
             self.position[0] += 1
+        self.audio_move.set_volume(settings.AUDIO_VOLUME)
         self.audio_move.play()
 
     def get_right_pattern(self):
@@ -733,6 +736,7 @@ class BlockS(Block):
             return
         if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
+        self.audio_move.set_volume(settings.AUDIO_VOLUME)
         self.audio_move.play()
 
     def get_right_pattern(self):
@@ -810,6 +814,7 @@ class BlockT(Block):
         if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
 
+        self.audio_move.set_volume(settings.AUDIO_VOLUME)
         self.audio_move.play()
 
     def get_right_pattern(self):
@@ -909,6 +914,7 @@ class BlockZ(Block):
             return
         if game.board.check_right(self.position, self.get_right_pattern()):
             self.position[0] += 1
+        self.audio_move.set_volume(settings.AUDIO_VOLUME)
         self.audio_move.play()
 
     def get_right_pattern(self):
@@ -980,6 +986,7 @@ class CurrentBlock:
                     and self.block.check_bottom():
                 game.add_score(1)
                 self.block.fall()
+                self.audio_fall.set_volume(settings.AUDIO_VOLUME)
                 self.audio_fall.play()
 
     def set_block(self, block):
@@ -1021,6 +1028,21 @@ class Game:
         self.singles, self.doubles, self.triples, self.tetrises, self.blocks = 0, 0, 0, 0, 0
         self.max_combo, self.tspins = 0, 0
 
+    def render_and_update(self):
+        if self.current_block.block is None:
+            self.next_block()
+
+        self.current_block.update()
+
+        self.board.draw_board()
+        self.current_block.block.draw()
+        self.board.check_lose()
+        self.draw_score()
+        self.block_queue.render()
+
+        particles.update()
+        particles.draw(screen)
+
     def get_current_time(self):
         return pygame.time.get_ticks() - self.start_time
 
@@ -1029,16 +1051,20 @@ class Game:
 
     def countdown(self):
         if 0 <= self.get_current_time() < 100:
+            self.audio_ready.set_volume(settings.AUDIO_VOLUME)
             self.audio_ready.play()
         elif 1000 <= self.get_current_time() < 1080:
+            self.audio_count.set_volume(settings.AUDIO_VOLUME)
             self.audio_count.play()
         elif 2000 <= self.get_current_time() < 2080:
             self.audio_count.play()
         elif 3000 <= self.get_current_time() < 3080:
             self.audio_count.play()
         elif 4000 <= self.get_current_time() < 4100:
+            self.audio_go.set_volume(settings.AUDIO_VOLUME)
             self.audio_go.play()
         elif 4500 <= self.get_current_time() < 4600:
+            self.audio_game_start.set_volume(settings.AUDIO_VOLUME)
             self.audio_game_start.play()
         elif 4600 <= self.get_current_time() < 4700:
             self.load_music()
@@ -1113,11 +1139,14 @@ class Game:
 
     def level_up(self):
         self.current_level += 1
-        if self.current_level == 10:
+        if self.current_level == 11:
+            self.audio_level_up1.set_volume(settings.AUDIO_VOLUME)
             self.audio_level_up1.play()
-        elif self.current_level == 15:
+        elif self.current_level == 16:
+            self.audio_level_up2.set_volume(settings.AUDIO_VOLUME)
             self.audio_level_up2.play()
         else:
+            self.audio_level_up.set_volume(settings.AUDIO_VOLUME)
             self.audio_level_up.play()
         pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // self.current_level)
 
@@ -1156,6 +1185,7 @@ class BlockQueue:
     def lock(self):
         self.locked, game.current_block.block = game.current_block.get_type(), self.locked
         game.locked = True
+        self.audio_hold.set_volume(settings.AUDIO_VOLUME)
         self.audio_hold.play()
 
     def pop(self, index):
@@ -1245,9 +1275,11 @@ class LevelSelection:
             if self.rect_buttons[i].collidepoint(pos):
                 if self.selected_level != i:
                     self.selected_level = i
+                    self.audio_swap.set_volume(settings.AUDIO_VOLUME)
                     self.audio_swap.play()
                 return
         if self.rect_start_button.collidepoint(pos):
+            self.audio_select.set_volume(settings.AUDIO_VOLUME)
             self.audio_select.play()
             return True
         return False
@@ -1280,6 +1312,7 @@ class HardDropParticle(pygame.sprite.Sprite):
 
 class MainMenu:
     surface_light = pygame.image.load('res/light.png').convert_alpha()
+    audio_click = pygame.mixer.Sound('audio/main_menu_select.wav')
 
     def __init__(self):
         self.buttons = list()
@@ -1399,6 +1432,7 @@ class EndGameScreen:
         self.music_started = False
         pygame.mixer.music.stop()
 
+        self.audio_gameover.set_volume(settings.AUDIO_VOLUME)
         self.audio_gameover.play()
 
         self.back_to_menu_pressed = False
@@ -1422,6 +1456,7 @@ class EndGameScreen:
 
     def check_pos(self, pos):
         if self.rect_back_to_menu.collidepoint(pos) and not self.back_to_menu_pressed:
+            self.audio_ok.set_volume(settings.AUDIO_VOLUME)
             self.audio_ok.play()
             self.back_to_menu_pressed = True
             self.fadeout_start_time = pygame.time.get_ticks()
@@ -1444,6 +1479,259 @@ class EndGameScreen:
         return pygame.time.get_ticks() - self.fadeout_start_time
 
 
+class Settings:
+    try:
+        with open('settings', 'r', encoding='utf8') as reader:
+            settings = reader.readlines()
+        settings = iter(settings)
+    except FileNotFoundError:
+        with open('settings', 'w', encoding='utf8') as writer:
+            settings = '1\n1\n1073741904\n1073741903\n1073741905\n1073741906\n113\n32\n13'
+            writer.write(settings)
+        settings = iter(settings.split('\n'))
+
+    AUDIO_VOLUME = float(settings.__next__())
+    MUSIC_VOLUME = float(settings.__next__())
+
+    MOVE_LEFT_BUTTON = int(settings.__next__())
+    MOVE_RIGHT_BUTTON = int(settings.__next__())
+    SOFT_DROP_BUTTON = int(settings.__next__())
+    ROTATE_LEFT_BUTTON = int(settings.__next__())
+    ROTATE_RIGHT_BUTTON = int(settings.__next__())
+    HARD_DROP_BUTTON = int(settings.__next__())
+    HOLD_BLOCK_BUTTON = int(settings.__next__())
+
+    pygame.mixer.music.set_volume(MUSIC_VOLUME)
+
+    BUTTONS_TO_STRING = {27: 'esc', 1073741882: 'f1', 1073741883: 'f2', 1073741884: 'f3', 1073741885: 'f4',
+                         1073741886: 'f5',
+                         1073741887: 'f6', 1073741888: 'f7', 1073741889: 'f8', 1073741890: 'f9', 1073741891: 'f10',
+                         1073741892: 'f11',
+                         1073741893: 'f12', 45: '-', 61: '=', 9: 'tab', 113: 'q', 119: 'w', 101: 'e', 114: 'r',
+                         116: 't', 121: 'y',
+                         117: 'u', 105: 'i', 111: 'o', 112: 'p', 91: '[', 93: ']', 92: '\\', 97: 'a', 115: 's',
+                         100: 'd', 102: 'f',
+                         103: 'g', 104: 'h', 106: 'j', 107: 'k', 108: 'l', 59: ';', 39: "'", 122: 'z', 120: 'x',
+                         99: 'c', 118: 'v',
+                         98: 'b', 110: 'n', 109: 'm', 44: ',', 46: '.', 47: '/', 1073742049: 'shift',
+                         1073742048: 'ctrl',
+                         1073742050: 'alt', 32: 'space', 1073741906: 'up', 1073741905: 'down', 1073741904: 'left',
+                         1073741903: 'right',
+                         13: 'enter'}
+
+    def __init__(self):
+        self.surface = pygame.surface.Surface((Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 3 * 2))
+        self.rect = self.surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 2))
+        self.surface.fill((86, 233, 204))
+        self.surface.set_alpha(150)
+        self.mouseButtonDown = False
+        self.title_font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', Constants.WINDOW_SIZE[1] // 10)
+        self.text_font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', Constants.WINDOW_SIZE[1] // 30)
+
+        self.settings_title_surface = self.title_font.render('Settings', True, (255, 255, 255))
+        self.settings_title_rect = self.settings_title_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 2,
+                                                                                Constants.WINDOW_SIZE[1] // 4 - 10))
+
+        self.music_volume_title_surface = self.text_font.render('Music volume', True, (255, 255, 255))
+        self.music_volume_title_rect = self.music_volume_title_surface.get_rect(
+            topleft=(Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 10 * 3))
+
+        self.audio_volume_title_surface = self.text_font.render('Audio volume', True, (255, 255, 255))
+        self.audio_volume_title_rect = self.audio_volume_title_surface.get_rect(
+            bottomleft=(Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 10 * 4))
+
+        self.music_volume_line = AdjustmentLine(Constants.WINDOW_SIZE[0] // 10 * 5,
+                                                Constants.WINDOW_SIZE[1] // 20 * 6 + 5,
+                                                Constants.WINDOW_SIZE[0] // 10 * 2, 20, self.MUSIC_VOLUME)
+        self.audio_volume_line = AdjustmentLine(Constants.WINDOW_SIZE[0] // 10 * 5,
+                                                Constants.WINDOW_SIZE[1] // 20 * 7 + 15,
+                                                Constants.WINDOW_SIZE[0] // 10 * 2, 20, self.AUDIO_VOLUME)
+
+        self.controls_title_surface = self.title_font.render('Controls', True, (255, 255, 255))
+        self.controls_title_rect = self.controls_title_surface.get_rect(
+            center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 20 * 9))
+
+        self.move_left_title_surface = self.text_font.render('Move left', True, (255, 255, 255))
+        self.move_left_title_rect = self.move_left_title_surface.get_rect(
+            topleft=(Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 20 * 10))
+        self.move_right_title_surface = self.text_font.render('Move right', True, (255, 255, 255))
+        self.move_right_title_rect = self.move_right_title_surface.get_rect(
+            topleft=(Constants.WINDOW_SIZE[0] // 10 * 5, Constants.WINDOW_SIZE[1] // 20 * 10))
+        self.rotate_left_title_surface = self.text_font.render('Rotate left', True, (255, 255, 255))
+        self.rotate_left_title_rect = self.rotate_left_title_surface.get_rect(
+            topleft=(Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 20 * 11))
+        self.rotate_right_title_surface = self.text_font.render('Rotate right', True, (255, 255, 255))
+        self.rotate_right_title_rect = self.rotate_right_title_surface.get_rect(
+            topleft=(Constants.WINDOW_SIZE[0] // 10 * 5, Constants.WINDOW_SIZE[1] // 20 * 11))
+        self.hard_drop_title_surface = self.text_font.render('Hard drop', True, (255, 255, 255))
+        self.hard_drop_title_rect = self.hard_drop_title_surface.get_rect(
+            topleft=(Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 20 * 12))
+        self.soft_drop_title_surface = self.text_font.render('Soft drop', True, (255, 255, 255))
+        self.soft_drop_title_rect = self.soft_drop_title_surface.get_rect(
+            topleft=(Constants.WINDOW_SIZE[0] // 10 * 5, Constants.WINDOW_SIZE[1] // 20 * 12))
+        self.hold_tetromino_title_surface = self.text_font.render('Hold tetromino', True, (255, 255, 255))
+        self.hold_tetromino_title_rect = self.hold_tetromino_title_surface.get_rect(
+            topleft=(Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 20 * 13))
+
+        self.move_left_button = ControlsKey(self.BUTTONS_TO_STRING[self.MOVE_LEFT_BUTTON],
+                                            Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 20 * 10,
+                                            Constants.WINDOW_SIZE[1] // 20 - 10)
+        self.move_right_button = ControlsKey(self.BUTTONS_TO_STRING[self.MOVE_RIGHT_BUTTON],
+                                             Constants.WINDOW_SIZE[0] // 10 * 6, Constants.WINDOW_SIZE[1] // 20 * 10,
+                                             Constants.WINDOW_SIZE[1] // 20 - 10)
+        self.rotate_left_button = ControlsKey(self.BUTTONS_TO_STRING[self.ROTATE_LEFT_BUTTON],
+                                              Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 20 * 11,
+                                              Constants.WINDOW_SIZE[1] // 20 - 10)
+        self.rotate_right_button = ControlsKey(self.BUTTONS_TO_STRING[self.ROTATE_RIGHT_BUTTON],
+                                               Constants.WINDOW_SIZE[0] // 10 * 6, Constants.WINDOW_SIZE[1] // 20 * 11,
+                                               Constants.WINDOW_SIZE[1] // 20 - 10)
+        self.hard_drop_button = ControlsKey(self.BUTTONS_TO_STRING[self.HARD_DROP_BUTTON],
+                                            Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 20 * 12,
+                                            Constants.WINDOW_SIZE[1] // 20 - 10)
+        self.soft_drop_button = ControlsKey(self.BUTTONS_TO_STRING[self.SOFT_DROP_BUTTON],
+                                            Constants.WINDOW_SIZE[0] // 10 * 6, Constants.WINDOW_SIZE[1] // 20 * 12,
+                                            Constants.WINDOW_SIZE[1] // 20 - 10)
+        self.hold_tetromino_button = ControlsKey(self.BUTTONS_TO_STRING[self.HOLD_BLOCK_BUTTON],
+                                                 Constants.WINDOW_SIZE[0] // 20 * 11,
+                                                 Constants.WINDOW_SIZE[1] // 20 * 13,
+                                                 Constants.WINDOW_SIZE[1] // 20 - 10)
+
+        self.buttons = [self.move_left_button, self.move_right_button, self.rotate_left_button,
+                        self.rotate_right_button, self.hard_drop_button, self.soft_drop_button,
+                        self.hold_tetromino_button]
+
+        self.button_getter = None
+        self.button_selection = False
+
+    def save_settings(self):
+        print(self.AUDIO_VOLUME, self.MUSIC_VOLUME)
+        with open('settings', 'w', encoding='utf8') as writer:
+            s = f'{self.AUDIO_VOLUME}\n{self.MUSIC_VOLUME}\n{self.MOVE_LEFT_BUTTON}\n{self.MOVE_RIGHT_BUTTON}\n' \
+                f'{self.SOFT_DROP_BUTTON}\n{self.ROTATE_LEFT_BUTTON}\n{self.ROTATE_RIGHT_BUTTON}\n' \
+                f'{self.HARD_DROP_BUTTON}\n{self.HOLD_BLOCK_BUTTON}'
+            writer.write(s)
+
+    def render(self):
+        screen.blit(self.surface, self.rect)
+
+        screen.blit(self.settings_title_surface, self.settings_title_rect)
+        screen.blit(self.music_volume_title_surface, self.music_volume_title_rect)
+        screen.blit(self.audio_volume_title_surface, self.audio_volume_title_rect)
+
+        screen.blit(self.controls_title_surface, self.controls_title_rect)
+        screen.blit(self.move_left_title_surface, self.move_left_title_rect)
+        screen.blit(self.move_right_title_surface, self.move_right_title_rect)
+        screen.blit(self.rotate_left_title_surface, self.rotate_left_title_rect)
+        screen.blit(self.rotate_right_title_surface, self.rotate_right_title_rect)
+        screen.blit(self.hard_drop_title_surface, self.hard_drop_title_rect)
+        screen.blit(self.soft_drop_title_surface, self.soft_drop_title_rect)
+        screen.blit(self.hold_tetromino_title_surface, self.hold_tetromino_title_rect)
+
+        for button in self.buttons:
+            button.render()
+
+        self.music_volume_line.render()
+        self.audio_volume_line.render()
+
+        for button in self.buttons:
+            if button.get_button:
+                self.button_selection = True
+                if self.button_getter is None:
+                    button.render_get_button()
+                else:
+                    if button.button_pressed(self.button_getter):
+                        self.button_selection = False
+                    self.button_getter = None
+
+    def check_adjustment_lines(self, pos):
+        self.music_volume_line.check_click(pos)
+        self.audio_volume_line.check_click(pos)
+        pygame.mixer.music.set_volume(self.music_volume_line.get_value())
+        self.AUDIO_VOLUME = self.audio_volume_line.get_value()
+        self.MUSIC_VOLUME = self.music_volume_line.get_value()
+
+
+class AdjustmentLine:
+    def __init__(self, x, y, width, height, default_value, color='white'):
+        self.rect = pygame.rect.Rect((x, y), (width, height))
+        self.x, self.y, self.width, self.height = x, y, width, height
+        self.value = int(default_value * 100)
+        self.color = color
+
+        self.line_surface = pygame.surface.Surface((width, height // 4))
+        self.line_surface.fill('white')
+        self.line_rect = self.line_surface.get_rect(center=(x + width // 2, y + height // 2))
+
+        self.value_per_pixel = width / 100
+
+    def render(self):
+        pygame.draw.circle(screen, self.color, (self.x, self.y + self.height // 2), self.height // 4 // 2)
+        pygame.draw.circle(screen, self.color, (self.x + self.width, self.y + self.height // 2), self.height // 4 // 2)
+        screen.blit(self.line_surface, self.line_rect)
+        center = (self.x + int(self.value * self.value_per_pixel), self.y + self.height // 2)
+        radius = self.height // 2 - 1
+        pygame.draw.circle(screen, self.color, center, radius)
+
+    def check_click(self, pos):
+        if self.rect.collidepoint(pos):
+            self.value = (pos[0] - self.x) // self.value_per_pixel
+
+    def get_value(self):
+        return int(self.value) / 100
+
+
+class ControlsKey:
+    surface_empty_key = pygame.image.load('res/keyboard/empty_key.png').convert_alpha()
+
+    def __init__(self, default_key, x, y, height):
+        self.key_title = default_key
+        self.surface_key = None
+        self.x, self.y, self.height = x, y, height
+        self.rect = pygame.rect.Rect((x, y), (height, height))
+        self.font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', self.height)
+        self.title_font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', Constants.WINDOW_SIZE[1] // 10)
+        self.transform_button()
+        self.get_button = False
+
+    def render(self):
+        screen.blit(self.surface_key, self.rect)
+        if self.key_title not in ('left', 'right', 'up', 'down'):
+            text_surface = self.font.render(self.key_title.upper(), True, (255, 255, 255))
+            text_rect = text_surface.get_rect(center=(self.rect.centerx, self.rect.centery))
+            screen.blit(text_surface, text_rect)
+
+    def check_pos(self, pos):
+        if self.rect.collidepoint(pos):
+            self.get_button = True
+
+    def render_get_button(self):
+        surface = pygame.surface.Surface(Constants.WINDOW_SIZE)
+        surface.set_alpha(100)
+        screen.blit(surface, (0, 0))
+        text_surface = self.title_font.render('Press any button to assign', True, (255, 255, 255))
+        screen.blit(text_surface,
+                    text_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 2)))
+
+    def button_pressed(self, button):
+        if button in settings.BUTTONS_TO_STRING.keys():
+            self.get_button = False
+            self.key_title = settings.BUTTONS_TO_STRING[button]
+            self.transform_button()
+            return True
+        return False
+
+    def transform_button(self):
+        if self.key_title in ('left', 'right', 'up', 'down'):
+            self.surface_key = pygame.transform.scale(pygame.image.load(f'res/keyboard/{self.key_title}.png'),
+                                                      (self.height, self.height))
+        else:
+            width = int(self.height * (1.4 ** (len(self.key_title) - 1)))
+            self.surface_key = pygame.transform.scale(self.surface_empty_key, (
+                width, self.height))
+            self.rect = pygame.rect.Rect((self.x, self.y), (
+                width, self.height))
+
+
 def terminate():
     pygame.quit()
     sys.exit()
@@ -1454,7 +1742,7 @@ FALL_BLOCK_EVENT = pygame.event.custom_type()
 background = Background()
 start_screen = StartScreen()
 program_state = Constants.START_SCREEN
-level_selection, game, menu, gameover = None, None, None, None
+level_selection, game, menu, gameover, settings = None, None, None, None, Settings()
 particles = pygame.sprite.Group()
 
 pygame.mixer.music.load(Constants.MUSIC_MAIN_MENU)
@@ -1490,7 +1778,10 @@ while True:
                 menu.get_covered(event.pos)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 response = menu.get_clicked(event.pos)
-                program_state = response if response is not None else Constants.MAIN_MENU
+                if response is not None:
+                    menu.audio_click.set_volume(settings.AUDIO_VOLUME)
+                    menu.audio_click.play()
+                    program_state = response if response is not None else Constants.MAIN_MENU
 
         menu.render()
 
@@ -1504,6 +1795,9 @@ while True:
                 if level_selection.check_pos(event.pos):
                     game = Game(level_selection.get_selected_level())
                     program_state = Constants.INGAME
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    program_state = Constants.MAIN_MENU
 
         level_selection.render()
 
@@ -1521,9 +1815,9 @@ while True:
                         game.current_block.block.rotate()
                     elif event.key == Settings.HARD_DROP_BUTTON:
                         hard_drop_particle = HardDropParticle(*game.current_block.block.hard_drop(True))
-                    elif event.key == Settings.MOVE_DOWN_BUTTON:
+                    elif event.key == Settings.SOFT_DROP_BUTTON:
                         game.current_block.move_down = True
-                    elif event.key == Settings.LOCK_BLOCK_BUTTON and game.may_lock():
+                    elif event.key == Settings.HOLD_BLOCK_BUTTON and game.may_lock():
                         game.block_queue.lock()
                 except AttributeError:
                     print(1)
@@ -1533,7 +1827,7 @@ while True:
                         game.current_block.move_left = False
                     elif event.key == Settings.MOVE_RIGHT_BUTTON:
                         game.current_block.move_right = False
-                    elif event.key == Settings.MOVE_DOWN_BUTTON:
+                    elif event.key == Settings.SOFT_DROP_BUTTON:
                         game.current_block.move_down = False
                 except AttributeError:
                     print(2)
@@ -1552,19 +1846,7 @@ while True:
             game.countdown()
         else:
             if not game.lose:
-                if game.current_block.block is None:
-                    game.next_block()
-
-                game.current_block.update()
-
-                game.board.draw_board()
-                game.current_block.block.draw()
-                game.board.check_lose()
-                game.draw_score()
-                game.block_queue.render()
-
-                particles.update()
-                particles.draw(screen)
+                game.render_and_update()
             else:
                 gameover = EndGameScreen()
                 program_state = Constants.ENDSCREEN
@@ -1577,6 +1859,32 @@ while True:
                 gameover.check_pos(event.pos)
 
         gameover.render()
+
+    elif program_state == Constants.SETTINGS:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            if settings.button_selection:
+                if event.type == pygame.KEYDOWN:
+                    settings.button_getter = event.key
+            else:
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        settings.save_settings()
+                        program_state = Constants.MAIN_MENU
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    menu.audio_click.set_volume(settings.AUDIO_VOLUME)
+                    menu.audio_click.play()
+                    settings.mouseButtonDown = True
+                    settings.check_adjustment_lines(event.pos)
+                    for btn in settings.buttons:
+                        btn.check_pos(event.pos)
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    settings.mouseButtonDown = False
+                elif settings.mouseButtonDown and event.type == pygame.MOUSEMOTION:
+                    settings.check_adjustment_lines(event.pos)
+
+        settings.render()
 
     elif program_state == -1:
         terminate()
