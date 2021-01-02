@@ -16,7 +16,7 @@ class Constants:
     BOARD_TOPLEFT = (FRAME_TOPLEFT[0] + 99, FRAME_TOPLEFT[1] + 7)
     BOARD_SIZE = (10, 20)
     MAX_VOLUME = 0.5
-    FALL_TIME = 2000
+    FALL_TIME = 1000
     FONT_SIZE = 30
     SCORE_FRAME_TOPLEFT = (700, 300)
     SCORE_TOPLEFT = (SCORE_FRAME_TOPLEFT[0] + 283, SCORE_FRAME_TOPLEFT[1] + 22)
@@ -26,7 +26,7 @@ class Constants:
     BLOCK_FALL_TIMER = 3000
     BLOCK_QUEUE_TOPLEFT = (FRAME_TOPLEFT[0] + 436, FRAME_TOPLEFT[1] + 34)
     LOCKED_BLOCK_TOPLEFT = (FRAME_TOPLEFT[0] + 19, FRAME_TOPLEFT[1] + 54)
-    FPS = 18
+    FPS = 30
 
     MUSIC_MAIN_MENU = 'music/menu_theme.mp3'
 
@@ -315,7 +315,7 @@ class Block:
         else:
             if not self.timer_set:
                 self.timer_set = True
-                pygame.time.set_timer(game.BLOCK_ANCHOR, Constants.BLOCK_FALL_TIMER, True)
+                game.BLOCK_ANCHOR.start(Constants.BLOCK_FALL_TIMER)
 
     def hard_drop(self, sound):
         while self.check_bottom():
@@ -328,7 +328,6 @@ class Block:
             self.audio_fall.set_volume(settings.AUDIO_VOLUME)
             self.audio_fall.play()
         self.anchor()
-        pygame.time.set_timer(game.BLOCK_ANCHOR, 0)
         return self.position, self.get_length(), self.get_height()
 
     def anchor(self):
@@ -362,7 +361,6 @@ class Block:
                 self.audio_rotate_2.set_volume(settings.AUDIO_VOLUME)
                 self.audio_rotate_2.play()
                 self.audio_rotate_2.set_volume(settings.AUDIO_VOLUME)
-                pygame.time.set_timer(game.BLOCK_ANCHOR, Constants.BLOCK_FALL_TIMER, True)
                 return
         self.audio_rotate.set_volume(settings.AUDIO_VOLUME)
         self.audio_rotate.play()
@@ -973,25 +971,30 @@ class CurrentBlock:
         self.move_left = False
         self.move_down = False
 
+        self.counter = 0
+
     def get_type(self):
         return self.block.get_self()
 
     def update(self):
-        if self.move_right:
-            self.block.move_right()
-        elif self.move_left:
-            self.block.move_left()
-        elif self.move_down:
-            if self.block.position[1] + len(self.block.get_pattern()) < Constants.BOARD_SIZE[1] \
-                    and self.block.check_bottom():
-                game.add_score(1)
-                self.block.fall()
-                self.audio_fall.set_volume(settings.AUDIO_VOLUME)
-                self.audio_fall.play()
+        self.counter += 1
+        self.counter %= 2
+        if self.counter == 0:
+            if self.move_right:
+                self.block.move_right()
+            elif self.move_left:
+                self.block.move_left()
+            elif self.move_down:
+                if self.block.position[1] + len(self.block.get_pattern()) < Constants.BOARD_SIZE[1] \
+                        and self.block.check_bottom():
+                    game.add_score(1)
+                    self.block.fall()
+                    self.audio_fall.set_volume(settings.AUDIO_VOLUME)
+                    self.audio_fall.play()
 
     def set_block(self, block):
         self.block = block
-        pygame.time.set_timer(game.BLOCK_ANCHOR, 0)
+        game.BLOCK_ANCHOR.stop()
 
 
 class Game:
@@ -1020,7 +1023,7 @@ class Game:
 
         self.block_queue = BlockQueue()
         self.current_block = CurrentBlock()
-        self.BLOCK_ANCHOR = pygame.event.custom_type()
+        self.BLOCK_ANCHOR = Timer()
 
         self.locked = False
         pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // level)
@@ -1183,6 +1186,7 @@ class BlockQueue:
         self.locked = None
 
     def lock(self):
+        game.BLOCK_ANCHOR.stop()
         self.locked, game.current_block.block = game.current_block.get_type(), self.locked
         game.locked = True
         self.audio_hold.set_volume(settings.AUDIO_VOLUME)
@@ -1604,7 +1608,6 @@ class Settings:
         self.button_selection = False
 
     def save_settings(self):
-        print(self.AUDIO_VOLUME, self.MUSIC_VOLUME)
         with open('settings', 'w', encoding='utf8') as writer:
             s = f'{self.AUDIO_VOLUME}\n{self.MUSIC_VOLUME}\n{self.MOVE_LEFT_BUTTON}\n{self.MOVE_RIGHT_BUTTON}\n' \
                 f'{self.SOFT_DROP_BUTTON}\n{self.ROTATE_LEFT_BUTTON}\n{self.ROTATE_RIGHT_BUTTON}\n' \
@@ -1732,6 +1735,25 @@ class ControlsKey:
                 width, self.height))
 
 
+class Timer:
+    def __init__(self):
+        self.start_time = pygame.time.get_ticks()
+        self.time = None
+
+    def start(self, time):
+        self.start_time = pygame.time.get_ticks()
+        self.time = time
+
+    def is_time(self):
+        if self.time is not None:
+            if self.start_time + self.time < pygame.time.get_ticks():
+                return True
+        return False
+
+    def stop(self):
+        self.time = None
+
+
 def terminate():
     pygame.quit()
     sys.exit()
@@ -1836,9 +1858,6 @@ while True:
                     game.current_block.block.fall()
                 except AttributeError:
                     print(3)
-            elif event.type == game.BLOCK_ANCHOR and not game.lose:
-                if game.current_block.block.timer_set:
-                    game.current_block.block.hard_drop(False)
 
         if game.is_countdown():
             game.board.draw_board()
@@ -1847,6 +1866,9 @@ while True:
         else:
             if not game.lose:
                 game.render_and_update()
+                if game.BLOCK_ANCHOR.is_time():
+                    if game.current_block.block.timer_set:
+                        game.current_block.block.hard_drop(False)
             else:
                 gameover = EndGameScreen()
                 program_state = Constants.ENDSCREEN
