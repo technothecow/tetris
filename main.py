@@ -10,7 +10,7 @@ class Constants:
     SIDE_LENGTH = 32
     HD = (1280, 720)
     FULL_HD = (1920, 1080)
-    MY_SCREEN = (1280, 680)
+    MY_SCREEN = (1366, 768)
     WINDOW_SIZE = MY_SCREEN
     FRAME_TOPLEFT = (50, 20)
     BOARD_TOPLEFT = (FRAME_TOPLEFT[0] + 99, FRAME_TOPLEFT[1] + 7)
@@ -30,12 +30,14 @@ class Constants:
 
     MUSIC_MAIN_MENU = 'music/menu_theme.mp3'
 
+    PACK_DEFAULT = 'default'
+
 
 pygame.mixer.pre_init()
 pygame.init()
 
 clock = pygame.time.Clock()
-screen = pygame.display.set_mode(Constants.WINDOW_SIZE)
+screen = pygame.display.set_mode(Constants.WINDOW_SIZE, pygame.FULLSCREEN)
 
 
 class Board:
@@ -44,37 +46,45 @@ class Board:
     audio_triple = pygame.mixer.Sound('audio/triple.wav')
     audio_tetris = pygame.mixer.Sound('audio/tetris.wav')
 
-    sprite_single_I = pygame.sprite.Sprite()
-    surface_single_I = pygame.image.load('res/default/single/singleI.png').convert_alpha()
-    sprite_single_I.image = pygame.transform.scale(surface_single_I, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
-
-    sprite_single_J = pygame.sprite.Sprite()
-    surface_single_J = pygame.image.load('res/default/single/singleJ.png').convert_alpha()
-    sprite_single_J.image = pygame.transform.scale(surface_single_J, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
-
-    sprite_single_L = pygame.sprite.Sprite()
-    surface_single_L = pygame.image.load('res/default/single/singleL.png').convert_alpha()
-    sprite_single_L.image = pygame.transform.scale(surface_single_L, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
-
-    sprite_single_O = pygame.sprite.Sprite()
-    surface_single_O = pygame.image.load('res/default/single/singleO.png').convert_alpha()
-    sprite_single_O.image = pygame.transform.scale(surface_single_O, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
-
-    sprite_single_S = pygame.sprite.Sprite()
-    surface_single_S = pygame.image.load('res/default/single/singleS.png').convert_alpha()
-    sprite_single_S.image = pygame.transform.scale(surface_single_S, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
-
-    sprite_single_T = pygame.sprite.Sprite()
-    surface_single_T = pygame.image.load('res/default/single/singleT.png').convert_alpha()
-    sprite_single_T.image = pygame.transform.scale(surface_single_T, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
-
-    sprite_single_Z = pygame.sprite.Sprite()
-    surface_single_Z = pygame.image.load('res/default/single/singleZ.png').convert_alpha()
-    sprite_single_Z.image = pygame.transform.scale(surface_single_Z, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
-
     surface_frame = pygame.image.load('res/frame.png').convert_alpha()
 
     def __init__(self, side_length, topleft):
+
+        self.sprite_single_I = pygame.sprite.Sprite()
+        self.surface_single_I = pack.singleI
+        self.sprite_single_I.image = pygame.transform.scale(self.surface_single_I,
+                                                            (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+        self.sprite_single_J = pygame.sprite.Sprite()
+        self.surface_single_J = pack.singleJ
+        self.sprite_single_J.image = pygame.transform.scale(self.surface_single_J,
+                                                            (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+        self.sprite_single_L = pygame.sprite.Sprite()
+        self.surface_single_L = pack.singleL
+        self.sprite_single_L.image = pygame.transform.scale(self.surface_single_L,
+                                                            (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+        self.sprite_single_O = pygame.sprite.Sprite()
+        self.surface_single_O = pack.singleO
+        self.sprite_single_O.image = pygame.transform.scale(self.surface_single_O,
+                                                            (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+        self.sprite_single_S = pygame.sprite.Sprite()
+        self.surface_single_S = pack.singleS
+        self.sprite_single_S.image = pygame.transform.scale(self.surface_single_S,
+                                                            (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+        self.sprite_single_T = pygame.sprite.Sprite()
+        self.surface_single_T = pack.singleT
+        self.sprite_single_T.image = pygame.transform.scale(self.surface_single_T,
+                                                            (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
+        self.sprite_single_Z = pygame.sprite.Sprite()
+        self.surface_single_Z = pack.singleZ
+        self.sprite_single_Z.image = pygame.transform.scale(self.surface_single_Z,
+                                                            (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+
         self.board = list()
         self.init_board()
         self.topleft_x, self.topleft_y = topleft
@@ -220,63 +230,55 @@ class Board:
 
 
 class Block:
-    group_blocks = pygame.sprite.Group()
-
-    sprite_I = pygame.sprite.Sprite()
-    surface_I = pygame.image.load('res/default/blocks/I.png').convert_alpha()
-    sprite_I.image = pygame.transform.scale(surface_I, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH * 4))
-    sprite_I.rect = sprite_I.image.get_rect()
-    group_blocks.add(sprite_I)
-
-    sprite_J = pygame.sprite.Sprite()
-    surface_J = pygame.image.load('res/default/blocks/J.png').convert_alpha()
-    sprite_J.image = pygame.transform.scale(surface_J, (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
-    sprite_J.rect = sprite_J.image.get_rect()
-    group_blocks.add(sprite_J)
-
-    sprite_L = pygame.sprite.Sprite()
-    surface_L = pygame.image.load('res/default/blocks/L.png').convert_alpha()
-    sprite_L.image = pygame.transform.scale(surface_L, (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
-    sprite_L.rect = sprite_L.image.get_rect()
-    group_blocks.add(sprite_L)
-
-    sprite_O = pygame.sprite.Sprite()
-    surface_O = pygame.image.load('res/default/blocks/O.png').convert_alpha()
-    sprite_O.image = pygame.transform.scale(surface_O, (Constants.SIDE_LENGTH * 2, Constants.SIDE_LENGTH * 2))
-    sprite_O.rect = sprite_O.image.get_rect()
-    group_blocks.add(sprite_O)
-
-    sprite_S = pygame.sprite.Sprite()
-    surface_S = pygame.image.load('res/default/blocks/S.png').convert_alpha()
-    sprite_S.image = pygame.transform.scale(surface_S, (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
-    sprite_S.rect = sprite_S.image.get_rect()
-    group_blocks.add(sprite_S)
-
-    sprite_T = pygame.sprite.Sprite()
-    surface_T = pygame.image.load('res/default/blocks/T.png').convert_alpha()
-    sprite_T.image = pygame.transform.scale(surface_T, (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
-    sprite_T.rect = sprite_T.image.get_rect()
-    group_blocks.add(sprite_T)
-
-    sprite_Z = pygame.sprite.Sprite()
-    surface_Z = pygame.image.load('res/default/blocks/Z.png').convert_alpha()
-    sprite_Z.image = pygame.transform.scale(surface_Z, (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
-    sprite_Z.rect = sprite_Z.image.get_rect()
-    group_blocks.add(sprite_Z)
-
     audio_move = pygame.mixer.Sound('audio/move.wav')
     audio_rotate = pygame.mixer.Sound('audio/rotate.wav')
     audio_hard_drop = pygame.mixer.Sound('audio/hard_drop.wav')
     audio_soft_drop = pygame.mixer.Sound('audio/soft_drop.wav')
     audio_rotate_2 = pygame.mixer.Sound('audio/rotate_2.wav')
     audio_fall = pygame.mixer.Sound('audio/fall.wav')
-    audio_move.set_volume(Constants.MAX_VOLUME)
-    audio_rotate.set_volume(Constants.MAX_VOLUME)
-    audio_hard_drop.set_volume(Constants.MAX_VOLUME)
-    audio_soft_drop.set_volume(Constants.MAX_VOLUME)
-    audio_rotate_2.set_volume(Constants.MAX_VOLUME)
 
     def __init__(self):
+        self.sprite_I = pygame.sprite.Sprite()
+        self.surface_I = pack.I
+        self.sprite_I.image = pygame.transform.scale(self.surface_I, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH * 4))
+
+        self.sprite_J = pygame.sprite.Sprite()
+        self.surface_J = pack.J
+        self.sprite_J.image = pygame.transform.scale(self.surface_J,
+                                                     (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
+
+        self.sprite_L = pygame.sprite.Sprite()
+        self.surface_L = pack.L
+        self.sprite_L.image = pygame.transform.scale(self.surface_L,
+                                                     (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
+
+        self.sprite_O = pygame.sprite.Sprite()
+        self.surface_O = pack.O
+        self.sprite_O.image = pygame.transform.scale(self.surface_O,
+                                                     (Constants.SIDE_LENGTH * 2, Constants.SIDE_LENGTH * 2))
+
+        self.sprite_S = pygame.sprite.Sprite()
+        self.surface_S = pack.S
+        self.sprite_S.image = pygame.transform.scale(self.surface_S,
+                                                     (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
+
+        self.sprite_T = pygame.sprite.Sprite()
+        self.surface_T = pack.T
+        self.sprite_T.image = pygame.transform.scale(self.surface_T,
+                                                     (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
+
+        self.sprite_Z = pygame.sprite.Sprite()
+        self.surface_Z = pack.Z
+        self.sprite_Z.image = pygame.transform.scale(self.surface_Z,
+                                                     (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
+
+        self.audio_move.set_volume(settings.AUDIO_VOLUME)
+        self.audio_rotate.set_volume(settings.AUDIO_VOLUME)
+        self.audio_hard_drop.set_volume(settings.AUDIO_VOLUME)
+        self.audio_soft_drop.set_volume(settings.AUDIO_VOLUME)
+        self.audio_rotate_2.set_volume(settings.AUDIO_VOLUME)
+        self.audio_fall.set_volume(settings.AUDIO_VOLUME)
+
         self.status = 0
         self.position = [4, 0]
         self.timer_set = False
@@ -1096,11 +1098,11 @@ class Game:
 
     def load_music(self):
         if self.current_level <= 10:
-            pygame.mixer.music.load('music/default/main_theme.ogg')
+            pygame.mixer.music.load(pack.main_theme)
         elif 10 < self.current_level <= 15:
-            pygame.mixer.music.load('music/default/main_theme_2.ogg')
+            pygame.mixer.music.load(pack.main_theme_2)
         elif 15 < self.current_level <= 20:
-            pygame.mixer.music.load('music/default/main_theme_3.mp3')
+            pygame.mixer.music.load(pack.main_theme_3)
         pygame.mixer.music.play(-1)
 
     def add_score(self, score):
@@ -1159,13 +1161,13 @@ class Game:
                 self.lines_cleared_from_last_level -= 10
                 self.level_up()
                 if self.current_level == 11:
-                    pygame.mixer.music.load('music/default/main_theme_2.ogg')
+                    pygame.mixer.music.load(pack.main_theme_2)
                     pygame.mixer.music.play(-1)
             elif 10 < self.current_level <= 15 and self.lines_cleared_from_last_level >= 20:
                 self.lines_cleared_from_last_level -= 20
                 self.level_up()
                 if self.current_level == 16:
-                    pygame.mixer.music.load('music/default/main_theme_3.mp3')
+                    pygame.mixer.music.load(pack.main_theme_3)
                     pygame.mixer.music.play(-1)
             elif 15 < self.current_level < 20 and self.lines_cleared_from_last_level >= 30:
                 self.lines_cleared_from_last_level -= 30
@@ -1470,7 +1472,11 @@ class EndGameScreen:
         if time < self.FADEOUT_TIME:
             surface = pygame.surface.Surface(Constants.WINDOW_SIZE)
             surface.set_alpha(time // (self.FADEOUT_TIME // 255))
-            pygame.mixer.music.set_volume(Settings.MUSIC_VOLUME - time * (self.FADEOUT_TIME // Settings.MUSIC_VOLUME))
+            try:
+                pygame.mixer.music.set_volume(
+                    Settings.MUSIC_VOLUME - time * (self.FADEOUT_TIME / Settings.MUSIC_VOLUME))
+            except ZeroDivisionError:
+                pass
             screen.blit(surface, (0, 0))
         else:
             global program_state
@@ -1754,6 +1760,38 @@ class Timer:
         self.time = None
 
 
+class SoundGraphicPack:
+    def __init__(self, name):
+        self.name = name
+        self.I, self.J, self.L, self.O, self.S, self.T, self.Z = None, None, None, None, None, None, None
+        self.singleI, self.singleJ, self.singleL, self.singleO, \
+        self.singleS, self.singleT, self.singleZ = None, None, None, None, None, None, None
+
+        self.main_theme, self.main_theme_2, self.main_theme_3 = None, None, None
+        self.load()
+
+    def load(self):
+        self.I = pygame.image.load(f'res/{self.name}/blocks/I.png').convert_alpha()
+        self.J = pygame.image.load(f'res/{self.name}/blocks/J.png').convert_alpha()
+        self.L = pygame.image.load(f'res/{self.name}/blocks/L.png').convert_alpha()
+        self.O = pygame.image.load(f'res/{self.name}/blocks/O.png').convert_alpha()
+        self.S = pygame.image.load(f'res/{self.name}/blocks/S.png').convert_alpha()
+        self.T = pygame.image.load(f'res/{self.name}/blocks/T.png').convert_alpha()
+        self.Z = pygame.image.load(f'res/{self.name}/blocks/Z.png').convert_alpha()
+
+        self.singleI = pygame.image.load(f'res/{self.name}/single/singleI.png').convert_alpha()
+        self.singleJ = pygame.image.load(f'res/{self.name}/single/singleJ.png').convert_alpha()
+        self.singleL = pygame.image.load(f'res/{self.name}/single/singleL.png').convert_alpha()
+        self.singleO = pygame.image.load(f'res/{self.name}/single/singleO.png').convert_alpha()
+        self.singleS = pygame.image.load(f'res/{self.name}/single/singleS.png').convert_alpha()
+        self.singleT = pygame.image.load(f'res/{self.name}/single/singleT.png').convert_alpha()
+        self.singleZ = pygame.image.load(f'res/{self.name}/single/singleZ.png').convert_alpha()
+
+        self.main_theme = f'music/{self.name}/main_theme.ogg'
+        self.main_theme_2 = f'music/{self.name}/main_theme_2.ogg'
+        self.main_theme_3 = f'music/{self.name}/main_theme_3.ogg'
+
+
 def terminate():
     pygame.quit()
     sys.exit()
@@ -1766,6 +1804,7 @@ start_screen = StartScreen()
 program_state = Constants.START_SCREEN
 level_selection, game, menu, gameover, settings = None, None, None, None, Settings()
 particles = pygame.sprite.Group()
+pack = SoundGraphicPack(Constants.PACK_DEFAULT)
 
 pygame.mixer.music.load(Constants.MUSIC_MAIN_MENU)
 pygame.mixer.music.play(-1)
