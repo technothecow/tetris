@@ -4,13 +4,19 @@ import pygame
 
 
 class Constants:
+    class Database:
+        HOST = 'sql7.freemysqlhosting.net'
+        USER = 'sql7384872'
+        PASSWORD = 'j3S7PXimi6'
+        DATABASE = 'sql7384872'
+
     I, J, L, O, S, T, Z = 1, 2, 3, 4, 5, 6, 7
     MAIN_MENU, SETTINGS, START_SCREEN, SHOP, PAUSE, INGAME, LEVEL_SELECT, PROFILE = 1, 2, 3, 4, 5, 6, 7, 8
-    ENDSCREEN = 9
+    ENDSCREEN, AUTHORISATION = 9, 10
     SIDE_LENGTH = 32
     HD = (1280, 720)
     FULL_HD = (1920, 1080)
-    MY_SCREEN = (1366, 768)
+    MY_SCREEN = (1300, 700)  # (1366, 768)
     WINDOW_SIZE = MY_SCREEN
     FRAME_TOPLEFT = (50, 20)
     BOARD_TOPLEFT = (FRAME_TOPLEFT[0] + 99, FRAME_TOPLEFT[1] + 7)
@@ -28,16 +34,21 @@ class Constants:
     LOCKED_BLOCK_TOPLEFT = (FRAME_TOPLEFT[0] + 19, FRAME_TOPLEFT[1] + 54)
     FPS = 30
 
+    MAIL_SYMBOL_LIMIT = 20
+
     MUSIC_MAIN_MENU = 'music/menu_theme.mp3'
 
     PACK_DEFAULT = 'default'
+
+    MARATHON = 0
+    WIN, LOSE, NEUTRAL = 0, 1, 2
 
 
 pygame.mixer.pre_init()
 pygame.init()
 
 clock = pygame.time.Clock()
-screen = pygame.display.set_mode(Constants.WINDOW_SIZE, pygame.FULLSCREEN)
+screen = pygame.display.set_mode(Constants.WINDOW_SIZE)  # , pygame.FULLSCREEN)
 
 
 class Board:
@@ -1232,8 +1243,10 @@ class Background:
 
 class StartScreen:
     surface_tetris_logo = pygame.image.load('res/tetris_logo_remaster.png').convert_alpha()
+    surface_tetris_logo = pygame.transform.scale(surface_tetris_logo, (Constants.WINDOW_SIZE[0] // 20 * 7,
+                                                                       Constants.WINDOW_SIZE[1] // 20 * 4))
     rect_tetris_logo = surface_tetris_logo.get_rect(
-        center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 4))
+        center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 20 * 5))
     font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', 40)
     surface_text = font.render('Press F to continue', True, (255, 255, 255))
     rect_text = surface_text.get_rect(center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 4 * 3))
@@ -1764,8 +1777,8 @@ class SoundGraphicPack:
     def __init__(self, name):
         self.name = name
         self.I, self.J, self.L, self.O, self.S, self.T, self.Z = None, None, None, None, None, None, None
-        self.singleI, self.singleJ, self.singleL, self.singleO, \
-        self.singleS, self.singleT, self.singleZ = None, None, None, None, None, None, None
+        self.singleI, self.singleJ, self.singleL, self.singleO = None, None, None, None
+        self.singleS, self.singleT, self.singleZ = None, None, None
 
         self.main_theme, self.main_theme_2, self.main_theme_3 = None, None, None
         self.load()
@@ -1792,6 +1805,359 @@ class SoundGraphicPack:
         self.main_theme_3 = f'music/{self.name}/main_theme_3.ogg'
 
 
+class Database:
+    def __init__(self, database, user, password, host):
+        self.database = mysql.connector.connect(
+            host=host,
+            user=user,
+            passwd=password,
+            database=database
+        )
+        self.cursor = self.database.cursor()
+
+    def login(self, email, password):
+        self.cursor.execute('SELECT id, name FROM Users WHERE email = %s AND password = %s', (email, password))
+        r = list(self.cursor)
+        if len(r) == 1:
+            return r[0]
+
+    def register(self, name, email, password):
+        if not self.is_username_taken(name) and not self.is_email_taken(email):
+            self.execute('INSERT INTO Users (name, email, password, coins) VALUES (%s, %s, %s, 0)',
+                         (name, email, password))
+            self.execute('INSERT INTO Stats (name) VALUES (%s)', (name,))
+            return True
+        return False
+
+    def is_username_taken(self, name):
+        self.cursor.execute('SELECT * FROM Users WHERE name = %s', (name,))
+        return bool(len(list(self.cursor)))
+
+    def is_email_taken(self, email):
+        self.cursor.execute('SELECT * FROM Users WHERE email = %s', (email,))
+        return bool(len(list(self.cursor)))
+
+    def execute(self, *args):
+        self.cursor.execute(*args)
+        self.database.commit()
+
+    def get_stats(self, name):
+        self.cursor.execute('SELECT * FROM Stats WHERE name = %s', (name,))
+        d = dict()
+        r = iter(list(self.cursor)[0][1::])
+        d['games_played'] = next(r)
+        d['blocks_dropped'] = next(r)
+        d['best_score'] = next(r)
+        d['playtime'] = next(r)
+        d['rang'] = next(r)
+        d['wins'] = next(r)
+        d['loses'] = next(r)
+        d['experience'] = next(r)
+        d['tetrises'] = next(r)
+        d['world_record_time'] = next(r)
+        return d
+
+    def set_experience(self, name, experience):
+        self.execute('UPDATE Stats SET experience = %s WHERE name = %s', (experience, name))
+
+    def set_score(self, name, score):
+        self.execute('UPDATE Stats SET best_score = %s WHERE name = %s', (score, name))
+
+    def set_games(self, name, games):
+        self.execute('UPDATE Stats SET games_played = %s WHERE name = %s', (games, name))
+
+    def set_playtime(self, name, playtime):
+        self.execute('UPDATE Stats SET playtime = %s WHERE name = %s', (playtime, name))
+
+    def set_rang(self, name, rang):
+        self.execute('UPDATE Stats SET rang = %s WHERE name = %s', (rang, name))
+
+    def set_wins(self, name, wins):
+        self.execute('UPDATE Stats SET wins = %s WHERE name = %s', (wins, name))
+
+    def set_loses(self, name, loses):
+        self.execute('UPDATE Stats SET loses = %s WHERE name = %s', (loses, name))
+
+    def set_blocks_dropped(self, name, blocks):
+        self.execute('UPDATE Stats SET blocks_dropped = %s WHERE name = %s', (blocks, name))
+
+    def set_tetrises(self, name, tetrises):
+        self.execute('UPDATE Stats SET tetrises = %s WHERE name = %s', (tetrises, name))
+
+    def set_world_record_time(self, name, time):
+        self.execute('UPDATE Stats SET world_record_time = %s WHERE name = %s', (time, name))
+
+    def add_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles, triples,
+                 tetrises, gametype, players, result):
+        self.execute('INSERT INTO Games (score, lines_cleared, time_played, blocks_placed, max_combo, tspins, '
+                     'singles, doubles, triples, tetrises, gametype, players, '
+                     'result) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                     (score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
+                      triples, tetrises, gametype, players, result))
+
+
+class User:
+    def __init__(self, name, database):
+        self.name = name
+        self.stats = db.get_stats(name)
+        self.db = database
+
+    def update(self):
+        self.stats = self.db.get_stats(self.name)
+
+    def add_marathon_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
+                          triples, tetrises):
+        self.db.add_game(score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
+                         triples, tetrises, Constants.MARATHON, self.name, Constants.NEUTRAL)
+
+    def add_experience(self, experience):
+        self.db.set_experince(self.name, self.stats['experience'] + experience)
+        self.update()
+
+    def add_game(self, games=1):
+        self.db.set_games(self.name, self.stats['games_played'] + games)
+        self.update()
+
+    def add_score(self, score):
+        if self.stats['best_score'] < score:
+            self.db.set_score(self.name, score)
+        self.update()
+
+    def add_blocks_dropped(self, blocks):
+        self.db.set_blocks_dropped(self.name, self.stats['blocks_dropped'] + blocks)
+        self.update()
+
+    def add_playtime(self, time):
+        self.db.set_playtime(self.name, self.stats['playtime'] + time)
+        self.update()
+
+    def rang_promote(self):
+        self.db.set_rang(self.name, self.stats['rang'] + 1)
+        self.update()
+
+    def rang_demote(self):
+        self.db.set_range(self.name, self.stats['rang'] - 1)
+        self.update()
+
+    def set_rang(self, rang):
+        self.db.set_rang(self.name, rang)
+        self.update()
+
+    def add_win(self, wins=1):
+        self.db.set_wins(self.name, self.stats['wins'] + wins)
+        self.update()
+
+    def add_lose(self, loses=1):
+        self.db.set_loses(self.name, self.stats['loses'] + loses)
+        self.update()
+
+    def add_tetrises(self, tetrises):
+        self.db.set_tetrises(self.name, self.stats['tetrises'] + tetrises)
+        self.update()
+
+    def add_world_record_time(self, time):
+        if self.stats['time'] > time or self.stats['time'] is None:
+            self.db.set_world_record_time(self.name, time)
+        self.update()
+
+    def get_stats(self):
+        return self.stats
+
+
+class AuthorisationWindow:
+    audio_click = MainMenu.audio_click
+    audio_alert = pygame.mixer.Sound('audio/alert.wav')
+
+    def __init__(self):
+        self.frame = pygame.Surface((Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 10 * 4))
+        self.rect = pygame.rect.Rect((Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 10 * 4),
+                                     (Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 10 * 4))
+        self.frame.set_alpha(100)
+        self.frame.fill((86, 233, 204))
+        self.log_in_title_surface = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf',
+                                                     Constants.WINDOW_SIZE[1] // 25).render(
+            'Log in using Tetris Extra account', True, (255, 255, 255))
+        self.log_in_title_rect = self.log_in_title_surface.get_rect(midtop=(Constants.WINDOW_SIZE[0] // 2,
+                                                                            Constants.WINDOW_SIZE[1] // 40 * 17))
+        self.email_input = LineEdit(Constants.WINDOW_SIZE[0] // 20 * 7,
+                                    Constants.WINDOW_SIZE[1] // 10 * 5,
+                                    Constants.WINDOW_SIZE[0] // 20 * 6,
+                                    Constants.WINDOW_SIZE[1] // 20,
+                                    'E-mail', (102, 204, 204), 200, self, False)
+        self.password_input = LineEdit(Constants.WINDOW_SIZE[0] // 20 * 7,
+                                       Constants.WINDOW_SIZE[1] // 10 * 6,
+                                       Constants.WINDOW_SIZE[0] // 20 * 6,
+                                       Constants.WINDOW_SIZE[1] // 20,
+                                       'Password', (102, 204, 204), 200, self, True)
+        self.continue_button = Button(self.on_click, Constants.WINDOW_SIZE[0] // 10 * 4,
+                                      Constants.WINDOW_SIZE[1] // 10 * 7, Constants.WINDOW_SIZE[0] // 10 * 2,
+                                      Constants.WINDOW_SIZE[1] // 10 // 2, 'Continue', (102, 204, 204))
+        self.selected_input = None
+        self.keys = list()
+
+    def on_click(self):
+        print('Make time and space for them, knowing that these are about more than forcing.')
+        self.audio_click.play()
+
+    def render(self):
+        screen.blit(StartScreen.surface_tetris_logo, StartScreen.rect_tetris_logo)
+        screen.blit(self.frame, self.rect)
+        screen.blit(self.log_in_title_surface, self.log_in_title_rect)
+        pygame.draw.rect(screen, 'white', self.rect, 1)
+        self.email_input.render()
+        self.password_input.render()
+        self.continue_button.render()
+
+        # n = 10
+        # for i in range(n):
+        #     pygame.draw.line(screen, 'black', (Constants.WINDOW_SIZE[0] // n * i, 0),
+        #                      (Constants.WINDOW_SIZE[0] // n * i, Constants.WINDOW_SIZE[1]))
+        # n = 10
+        # for i in range(n):
+        #     pygame.draw.line(screen, 'black', (0, Constants.WINDOW_SIZE[1] // n * i),
+        #                      (Constants.WINDOW_SIZE[0], Constants.WINDOW_SIZE[1] // n * i))
+
+
+class LineEdit:
+    BUTTONS_TO_STRING = {113: 'q', 119: 'w', 101: 'e', 114: 'r', 116: 't', 121: 'y', 117: 'u', 105: 'i', 111: 'o',
+                         112: 'p', 97: 'a', 115: 's', 100: 'd', 102: 'f', 103: 'g', 104: 'h', 106: 'j', 107: 'k',
+                         108: 'l', 122: 'z', 120: 'x', 99: 'c', 118: 'v', 98: 'b', 110: 'n',
+                         109: 'm', 46: '.', 48: '0', 45: '-', 49: '1', 50: '2', 51: '3', 52: '4',
+                         53: '5', 54: '6', 55: '7', 56: '8', 57: '9'}
+
+    PLACEHOLDER, HOVER, SELECTED, IDLE = 0, 1, 2, 3
+
+    def __init__(self, x, y, width, height, placeholder, color, alpha, window, hidden):
+        self.hidden = hidden
+        self.window = window
+        self.x, self.y, self.width, self.height = x, y, width, height
+        self.rect = pygame.rect.Rect((x, y), (width, height))
+        self.surface = pygame.Surface((width, height))
+        self.surface.fill(color)
+        self.surface.set_alpha(alpha)
+        self.placeholder = placeholder
+        self.color = color
+        self.alpha = alpha
+        self.font = pygame.font.Font('fonts/Nunito-Light.ttf', int(self.height / 10 * 7))
+        self.status = self.IDLE
+        self.input_text = ''
+
+    def get_text(self):
+        return self.input_text
+
+    def render(self):
+        screen.blit(self.surface, self.rect)
+        self.check_hover(pygame.mouse.get_pos())
+        if True in pygame.mouse.get_pressed(3):
+            self.check_click(pygame.mouse.get_pos())
+        if self.status == self.SELECTED and self.window.selected_input != hash(self):
+            self.status = self.IDLE
+        if self.status == self.HOVER:
+            self.render_hover()
+        elif self.status == self.SELECTED:
+            self.render_selected()
+        elif self.status == self.IDLE:
+            self.render_idle()
+
+    def render_hover(self):
+        self.render_idle()
+        white_surface = pygame.Surface((self.width, self.height))
+        white_surface.fill('white')
+        white_surface.set_alpha(50)
+        screen.blit(white_surface, self.rect)
+
+    def check_input(self, k):
+        temp_text = ''
+        for i in k:
+            if i in self.BUTTONS_TO_STRING:
+                temp_text += self.BUTTONS_TO_STRING[i]
+        if pygame.key.get_pressed()[1073742049]:
+            temp_text = temp_text.upper().replace('2', '@')
+        self.input_text += temp_text
+        if pygame.K_BACKSPACE in k:
+            self.input_text = self.input_text[:-1]
+
+    def render_selected(self):
+        self.check_input(self.window.keys)
+        text = self.input_text if pygame.time.get_ticks() // 1000 % 2 == 0 else self.input_text
+        text_surface = self.font.render((text if not self.hidden else len(text) * '*') + '|', True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center=(self.x + self.width // 2, self.y + self.height // 2))
+        screen.blit(text_surface, text_rect)
+        pygame.draw.rect(screen, 'white', self.rect, 1)
+
+    def render_idle(self):
+        placeholder = len(self.input_text) == 0
+        text = self.placeholder if placeholder else (self.input_text if not self.hidden else len(self.input_text) * "*")
+        text_surface = self.font.render(text, True, (211, 211, 211) if placeholder else 'white')
+        text_rect = text_surface.get_rect(center=(self.x + self.width // 2, self.y + self.height // 2))
+        screen.blit(text_surface, text_rect)
+
+    def check_click(self, pos):
+        if self.rect.collidepoint(pos):
+            self.status = self.SELECTED
+            self.window.selected_input = hash(self)
+        else:
+            self.status = self.IDLE
+
+    def check_hover(self, pos):
+        if self.rect.collidepoint(pos) and self.status in (self.IDLE, self.HOVER):
+            self.status = self.HOVER
+        elif self.status == self.HOVER:
+            self.status = self.IDLE
+
+    def __hash__(self):
+        return self.x * self.y - self.x - self.y
+
+
+class Button:
+    IDLE, HOVER, PRESSED, RELEASED = 0, 1, 2, 3
+
+    def __init__(self, on_click, x, y, width, height, text, color, text_color=(255, 255, 255), font_size=None):
+        self.on_click = on_click
+        if font_size is None:
+            font_size = int(height / 10 * 7)
+        self.surface = pygame.Surface((width, height))
+        self.surface.fill(color)
+        self.rect = pygame.rect.Rect((x, y), (width, height))
+        font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', font_size)
+        self.text_surface = font.render(text, True, text_color)
+        self.text_rect = self.text_surface.get_rect(center=(x + width // 2, y + height // 2))
+        self.status = self.IDLE
+
+        self.white_surface = pygame.Surface((self.rect.width, self.rect.height))
+        self.white_surface.fill('white')
+        self.white_surface.set_alpha(100)
+
+        self.black_surface = pygame.Surface((self.rect.width, self.rect.height))
+        self.black_surface.set_alpha(100)
+
+    def render(self):
+        if self.status == self.RELEASED:
+            self.on_click()
+
+        self.check_pos()
+
+        screen.blit(self.surface, self.rect)
+        screen.blit(self.text_surface, self.text_rect)
+
+        if self.status == self.HOVER:
+            screen.blit(self.white_surface, self.rect)
+        elif self.status == self.PRESSED:
+            screen.blit(self.black_surface, self.rect)
+
+    def check_pos(self):
+        if self.rect.collidepoint(pygame.mouse.get_pos()):
+            if True in pygame.mouse.get_pressed(3):
+                self.status = self.PRESSED
+                return
+            elif self.status == self.PRESSED:
+                self.status = self.RELEASED
+                return
+            self.status = self.HOVER
+            return
+        self.status = self.IDLE
+
+
 def terminate():
     pygame.quit()
     sys.exit()
@@ -1802,7 +2168,7 @@ FALL_BLOCK_EVENT = pygame.event.custom_type()
 background = Background()
 start_screen = StartScreen()
 program_state = Constants.START_SCREEN
-level_selection, game, menu, gameover, settings = None, None, None, None, Settings()
+level_selection, game, menu, gameover, settings, authorisation = None, None, None, None, Settings(), None
 particles = pygame.sprite.Group()
 pack = SoundGraphicPack(Constants.PACK_DEFAULT)
 
@@ -1817,13 +2183,27 @@ while True:
                 terminate()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_f:
-                    menu = MainMenu()
-                    program_state = Constants.MAIN_MENU
+                    program_state = Constants.AUTHORISATION
 
         screen.blit(StartScreen.surface_tetris_logo, StartScreen.rect_tetris_logo)
         screen.blit(start_screen.get_surface_text(), StartScreen.rect_text)
 
+    elif program_state == Constants.AUTHORISATION:
+        if authorisation is None:
+            authorisation = AuthorisationWindow()
+        keys = list()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            elif event.type == pygame.KEYUP:
+                keys.append(event.key)
+        authorisation.keys = keys.copy()
+
+        authorisation.render()
+
     elif program_state == Constants.MAIN_MENU:
+        if menu is None:
+            menu = MainMenu()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
