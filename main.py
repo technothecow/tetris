@@ -1,6 +1,7 @@
 import random
 import sys
 import pygame
+import mysql.connector
 
 
 class Constants:
@@ -1333,7 +1334,8 @@ class MainMenu:
     surface_light = pygame.image.load('res/light.png').convert_alpha()
     audio_click = pygame.mixer.Sound('audio/main_menu_select.wav')
 
-    def __init__(self):
+    def __init__(self, user):
+        self.user = user
         self.buttons = list()
         self.surfaces = list()
         self.selected_button = None
@@ -1816,10 +1818,12 @@ class Database:
         self.cursor = self.database.cursor()
 
     def login(self, email, password):
-        self.cursor.execute('SELECT id, name FROM Users WHERE email = %s AND password = %s', (email, password))
+        self.cursor.execute('SELECT name FROM Users WHERE email = %s AND password = %s', (email, password))
         r = list(self.cursor)
         if len(r) == 1:
             return r[0]
+        else:
+            return False
 
     def register(self, name, email, password):
         if not self.is_username_taken(name) and not self.is_email_taken(email):
@@ -1899,7 +1903,7 @@ class Database:
 class User:
     def __init__(self, name, database):
         self.name = name
-        self.stats = db.get_stats(name)
+        self.stats = database.get_stats(name)
         self.db = database
 
     def update(self):
@@ -1968,12 +1972,19 @@ class AuthorisationWindow:
     audio_click = MainMenu.audio_click
     audio_alert = pygame.mixer.Sound('audio/alert.wav')
 
-    def __init__(self):
-        self.frame = pygame.Surface((Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 10 * 4))
+    AUTHORISATION, ANIMATION_TO_DOT, ANIMATION_FROM_DOT, CONNECTION = 0, 1, 2, 3
+
+    def __init__(self, db : Database):
+        self.database = db
+        self.size = [Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 10 * 4]
+        self.frame = pygame.Surface(self.size)
         self.rect = pygame.rect.Rect((Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 10 * 4),
-                                     (Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 10 * 4))
-        self.frame.set_alpha(100)
-        self.frame.fill((86, 233, 204))
+                                     self.size)
+        self.center = self.rect.center
+        self.alpha = 100
+        self.frame.set_alpha(self.alpha)
+        self.color = (86, 233, 204)
+        self.frame.fill(self.color)
         self.log_in_title_surface = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf',
                                                      Constants.WINDOW_SIZE[1] // 25).render(
             'Log in using Tetris Extra account', True, (255, 255, 255))
@@ -1995,27 +2006,76 @@ class AuthorisationWindow:
         self.selected_input = None
         self.keys = list()
 
+        self.status = self.AUTHORISATION
+
+        self.speed = 20
+
+        self.error_font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', Constants.WINDOW_SIZE[1] // 40)
+        self.wrong_credentials_surface = self.error_font.render('', True, (255, 0, 0))
+        self.wrong_credentials_rect = self.wrong_credentials_surface.get_rect(midtop=self.log_in_title_rect.midbottom)
+
     def on_click(self):
-        print('Make time and space for them, knowing that these are about more than forcing.')
         self.audio_click.play()
+        self.status = self.ANIMATION_TO_DOT
 
     def render(self):
         screen.blit(StartScreen.surface_tetris_logo, StartScreen.rect_tetris_logo)
         screen.blit(self.frame, self.rect)
+        if self.status == self.AUTHORISATION:
+            self.render_authorisation()
+        elif self.status == self.ANIMATION_TO_DOT:
+            self.render_animation_to_dot()
+        elif self.status == self.CONNECTION:
+            res = self.database.login(self.email_input.get_text(), self.password_input.get_text())
+            if not res:
+                self.status = self.ANIMATION_FROM_DOT
+                return
+            return User(r, self.database)
+        elif self.status == self.ANIMATION_FROM_DOT:
+            self.render_animation_from_dot()
+        return False
+
+    def render_animation_to_dot(self):
+        if self.size[0] == 0 and self.size[1] == 0:
+            self.status = self.CONNECTION
+        for i in range(2):
+            if self.size[i] > 0:
+                self.size[i] -= self.speed
+                if self.size[i] < 0:
+                    self.size[i] = 0
+
+        self.frame = pygame.Surface(self.size)
+        self.frame.fill(self.color)
+        self.frame.set_alpha(self.alpha)
+        self.rect = self.frame.get_rect(center=self.center)
+        pygame.draw.rect(screen, 'white', self.rect, 1)
+
+    def render_animation_from_dot(self):
+        if self.size[0] == Constants.WINDOW_SIZE[0] // 10 * 4 and self.size[1] == Constants.WINDOW_SIZE[1] // 10 * 4:
+            self.status = self.AUTHORISATION
+            self.wrong_credentials_surface = self.error_font.render('Wrong email or password', True, (255, 0, 0))
+            self.wrong_credentials_rect = self.wrong_credentials_surface.get_rect(
+                midtop=self.log_in_title_rect.midbottom)
+        for i in range(2):
+            if self.size[i] < Constants.WINDOW_SIZE[i] // 10 * 4:
+                self.size[i] += self.speed
+                if self.size[i] > Constants.WINDOW_SIZE[i] // 10 * 4:
+                    self.size[i] = Constants.WINDOW_SIZE[i] // 10 * 4
+
+        self.frame = pygame.Surface(self.size)
+        self.frame.fill(self.color)
+        self.frame.set_alpha(self.alpha)
+        self.rect = self.frame.get_rect(center=self.center)
+        pygame.draw.rect(screen, 'white', self.rect, 1)
+
+    def render_authorisation(self):
         screen.blit(self.log_in_title_surface, self.log_in_title_rect)
+        screen.blit(self.wrong_credentials_surface, self.wrong_credentials_rect)
         pygame.draw.rect(screen, 'white', self.rect, 1)
         self.email_input.render()
         self.password_input.render()
         self.continue_button.render()
 
-        # n = 10
-        # for i in range(n):
-        #     pygame.draw.line(screen, 'black', (Constants.WINDOW_SIZE[0] // n * i, 0),
-        #                      (Constants.WINDOW_SIZE[0] // n * i, Constants.WINDOW_SIZE[1]))
-        # n = 10
-        # for i in range(n):
-        #     pygame.draw.line(screen, 'black', (0, Constants.WINDOW_SIZE[1] // n * i),
-        #                      (Constants.WINDOW_SIZE[0], Constants.WINDOW_SIZE[1] // n * i))
 
 
 class LineEdit:
@@ -2165,10 +2225,15 @@ def terminate():
 
 FALL_BLOCK_EVENT = pygame.event.custom_type()
 
+database = Database(database=Constants.Database.DATABASE,
+                    user=Constants.Database.USER,
+                    password=Constants.Database.PASSWORD,
+                    host=Constants.Database.HOST)
+
 background = Background()
 start_screen = StartScreen()
 program_state = Constants.START_SCREEN
-level_selection, game, menu, gameover, settings, authorisation = None, None, None, None, Settings(), None
+level_selection, game, menu, gameover, settings, authorisation, user = None, None, None, None, Settings(), None, None
 particles = pygame.sprite.Group()
 pack = SoundGraphicPack(Constants.PACK_DEFAULT)
 
@@ -2190,7 +2255,7 @@ while True:
 
     elif program_state == Constants.AUTHORISATION:
         if authorisation is None:
-            authorisation = AuthorisationWindow()
+            authorisation = AuthorisationWindow(database)
         keys = list()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -2199,11 +2264,14 @@ while True:
                 keys.append(event.key)
         authorisation.keys = keys.copy()
 
-        authorisation.render()
+        r = authorisation.render()
+        if r:
+            user = r
+            program_state = Constants.MAIN_MENU
 
     elif program_state == Constants.MAIN_MENU:
         if menu is None:
-            menu = MainMenu()
+            menu = MainMenu(user)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
