@@ -33,7 +33,7 @@ class Constants:
     LINES_TILL_NEXT_LEVEL_TOPLEFT = (SCORE_FRAME_TOPLEFT[0] + 283, SCORE_FRAME_TOPLEFT[1] + 152)
     BLOCK_FALL_TIMER = 3000
     BLOCK_QUEUE_TOPLEFT = (FRAME_TOPLEFT[0] + 436, FRAME_TOPLEFT[1] + 34)
-    LOCKED_BLOCK_TOPLEFT = (FRAME_TOPLEFT[0] + 19, FRAME_TOPLEFT[1] + 54)
+    HOLDED_BLOCK_TOPLEFT = (FRAME_TOPLEFT[0] + 19, FRAME_TOPLEFT[1] + 54)
     FPS = 30
 
     MAIL_SYMBOL_LIMIT = 30
@@ -230,7 +230,7 @@ class Board:
 
     def check_lose(self):
         if len(set(self.board[0])) != 1:
-            game.lose = True
+            game.gameover = True
 
     def check_right(self, position, pattern):
         for i in range(len(pattern)):
@@ -1027,27 +1027,27 @@ class Game:
     audio_go = pygame.mixer.Sound('audio/go.wav')
     audio_game_start = pygame.mixer.Sound('audio/game_start.wav')
 
-    def __init__(self, level):
+    def __init__(self):
+        self.gameover = False
+
         pygame.mixer.music.stop()
-        self.lines_cleared = 0
-        self.lines_cleared_from_last_level = 0
-        self.score = 0
+
+        self.score, self.combo = 0, 0
+        self.singles, self.doubles, self.triples, self.tetrises, self.blocks = 0, 0, 0, 0, 0
+        self.max_combo, self.lines_cleared, self.lines_cleared_from_last_level, self.tspins = 0, 0, 0, 0
+
         self.board = Board(Constants.SIDE_LENGTH, Constants.BOARD_TOPLEFT)
-        self.lose = False
-        self.combo = 0
+
         self.font = pygame.font.Font('fonts/Orbitron-Bold.ttf', Constants.FONT_SIZE)
-        self.current_level = level
+
         self.start_time = pygame.time.get_ticks()
 
         self.block_queue = BlockQueue()
         self.current_block = CurrentBlock()
         self.BLOCK_ANCHOR = Timer()
 
-        self.locked = False
-        pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // level)
-
-        self.singles, self.doubles, self.triples, self.tetrises, self.blocks = 0, 0, 0, 0, 0
-        self.max_combo, self.tspins = 0, 0
+        self.holded = False
+        pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME)
 
     def render_and_update(self):
         if self.current_block.block is None:
@@ -1058,7 +1058,6 @@ class Game:
         self.board.draw_board()
         self.current_block.block.draw()
         self.board.check_lose()
-        self.draw_score()
         self.block_queue.render()
 
         particles.update()
@@ -1071,23 +1070,24 @@ class Game:
         return self.get_current_time() < 4700
 
     def countdown(self):
-        if 0 <= self.get_current_time() < 100:
+        game.board.draw_board()
+        if 0 <= self.get_current_time() < 50:
             self.audio_ready.set_volume(settings.AUDIO_VOLUME)
             self.audio_ready.play()
-        elif 1000 <= self.get_current_time() < 1080:
+        elif 1000 <= self.get_current_time() < 1050:
             self.audio_count.set_volume(settings.AUDIO_VOLUME)
             self.audio_count.play()
-        elif 2000 <= self.get_current_time() < 2080:
+        elif 2000 <= self.get_current_time() < 2050:
             self.audio_count.play()
-        elif 3000 <= self.get_current_time() < 3080:
+        elif 3000 <= self.get_current_time() < 3050:
             self.audio_count.play()
-        elif 4000 <= self.get_current_time() < 4100:
+        elif 4000 <= self.get_current_time() < 4050:
             self.audio_go.set_volume(settings.AUDIO_VOLUME)
             self.audio_go.play()
-        elif 4500 <= self.get_current_time() < 4600:
+        elif 4500 <= self.get_current_time() < 4550:
             self.audio_game_start.set_volume(settings.AUDIO_VOLUME)
             self.audio_game_start.play()
-        elif 4600 <= self.get_current_time() < 4700:
+        elif 4600 <= self.get_current_time() < 4650:
             self.load_music()
 
         text = None
@@ -1109,8 +1109,35 @@ class Game:
             (Constants.BOARD_TOPLEFT[1] + Constants.BOARD_SIZE[1] * Constants.SIDE_LENGTH) // 3))
         screen.blit(surface_text, rect_text)
 
-    def may_lock(self):
-        return not self.locked
+    def may_hold(self):
+        return not self.holded
+
+    def add_score(self, score):
+        self.score += score
+
+    def add_cleared_lines(self, lines):
+        self.lines_cleared += lines
+
+    def next_block(self):
+        self.current_block.set_block(self.block_queue.pop(0))
+        self.holded = False
+
+
+class Marathon(Game):
+    def __init__(self, level):
+        super().__init__()
+        self.current_level = level
+        pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // level)
+        self.mode = 'Marathon'
+
+    def render_and_update(self):
+        super().render_and_update()
+        self.draw_score()
+
+    def add_cleared_lines(self, lines):
+        super().add_cleared_lines(lines)
+        self.lines_cleared_from_last_level += lines
+        self.check_level()
 
     def load_music(self):
         if self.current_level <= 10:
@@ -1120,56 +1147,6 @@ class Game:
         elif 15 < self.current_level <= 20:
             pygame.mixer.music.load(pack.main_theme_3)
         pygame.mixer.music.play(-1)
-
-    def add_score(self, score):
-        self.score += score
-
-    def draw_score(self):
-        screen.blit(self.surface_scoreboard, Constants.SCORE_FRAME_TOPLEFT)
-        surface = self.font.render(str(self.score), True, (0, 0, 0))
-        rect = surface.get_rect(topleft=Constants.SCORE_TOPLEFT)
-        screen.blit(surface, rect)
-        surface = self.font.render(str(self.current_level), True, (0, 0, 0))
-        rect = surface.get_rect(topleft=Constants.CURRENT_LEVEL_TOPLEFT)
-        screen.blit(surface, rect)
-        surface = self.font.render(str(self.lines_cleared), True, (0, 0, 0))
-        rect = surface.get_rect(topleft=Constants.TOTAL_LINES_TOPLEFT)
-        screen.blit(surface, rect)
-        surface = self.font.render(str(self.get_lines_to_next_level()), True, (0, 0, 0))
-        rect = surface.get_rect(topleft=Constants.LINES_TILL_NEXT_LEVEL_TOPLEFT)
-        screen.blit(surface, rect)
-
-    def get_lines_to_next_level(self):
-        if self.current_level <= 10:
-            return 10 - self.lines_cleared_from_last_level
-        elif 10 < self.current_level <= 15:
-            return 20 - self.lines_cleared_from_last_level
-        elif 15 < self.current_level < 20:
-            return 30 - self.lines_cleared_from_last_level
-        elif self.current_level == 20:
-            return "Infinite"
-
-    def add_cleared_lines(self, lines):
-        self.lines_cleared += lines
-        self.lines_cleared_from_last_level += lines
-        self.check_level()
-
-    def next_block(self):
-        self.current_block.set_block(self.block_queue.pop(0))
-        self.locked = False
-
-    def level_up(self):
-        self.current_level += 1
-        if self.current_level == 11:
-            self.audio_level_up1.set_volume(settings.AUDIO_VOLUME)
-            self.audio_level_up1.play()
-        elif self.current_level == 16:
-            self.audio_level_up2.set_volume(settings.AUDIO_VOLUME)
-            self.audio_level_up2.play()
-        else:
-            self.audio_level_up.set_volume(settings.AUDIO_VOLUME)
-            self.audio_level_up.play()
-        pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // self.current_level)
 
     def check_level(self):
         if self.lines_cleared_from_last_level >= 10:
@@ -1189,6 +1166,83 @@ class Game:
                 self.lines_cleared_from_last_level -= 30
                 self.level_up()
 
+    def level_up(self):
+        self.current_level += 1
+        if self.current_level == 11:
+            self.audio_level_up1.set_volume(settings.AUDIO_VOLUME)
+            self.audio_level_up1.play()
+        elif self.current_level == 16:
+            self.audio_level_up2.set_volume(settings.AUDIO_VOLUME)
+            self.audio_level_up2.play()
+        else:
+            self.audio_level_up.set_volume(settings.AUDIO_VOLUME)
+            self.audio_level_up.play()
+        pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // self.current_level)
+
+    def get_lines_to_next_level(self):
+        if self.current_level <= 10:
+            return 10 - self.lines_cleared_from_last_level
+        elif 10 < self.current_level <= 15:
+            return 20 - self.lines_cleared_from_last_level
+        elif 15 < self.current_level < 20:
+            return 30 - self.lines_cleared_from_last_level
+        elif self.current_level == 20:
+            return "Infinite"
+
+    def draw_score(self):
+        screen.blit(self.surface_scoreboard, Constants.SCORE_FRAME_TOPLEFT)
+        surface = self.font.render(str(self.score), True, (0, 0, 0))
+        rect = surface.get_rect(topleft=Constants.SCORE_TOPLEFT)
+        screen.blit(surface, rect)
+        surface = self.font.render(str(self.current_level), True, (0, 0, 0))
+        rect = surface.get_rect(topleft=Constants.CURRENT_LEVEL_TOPLEFT)
+        screen.blit(surface, rect)
+        surface = self.font.render(str(self.lines_cleared), True, (0, 0, 0))
+        rect = surface.get_rect(topleft=Constants.TOTAL_LINES_TOPLEFT)
+        screen.blit(surface, rect)
+        surface = self.font.render(str(self.get_lines_to_next_level()), True, (0, 0, 0))
+        rect = surface.get_rect(topleft=Constants.LINES_TILL_NEXT_LEVEL_TOPLEFT)
+        screen.blit(surface, rect)
+
+
+class WorldRecord(Game):
+    class Timer:
+        def __init__(self):
+            self.start_time = pygame.time.get_ticks()
+
+        def get_time(self):
+            return pygame.time.get_ticks() - self.start_time
+
+    def __init__(self):
+        super().__init__()
+        self.timer = self.Timer()
+        self.time_font = pygame.font.Font('fonts/Orbitron-Bold.ttf', Constants.WINDOW_SIZE[1] // 20)
+        self.desk_surface = pygame.surface.Surface((Constants.WINDOW_SIZE[0] // 10 * 2, Constants.WINDOW_SIZE[1] // 10))
+        self.desk_rect = self.desk_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 10 * 7,
+                                                            Constants.WINDOW_SIZE[1] // 10 * 5))
+        self.desk_surface.set_alpha(100)
+        self.desk_surface.fill((102, 204, 204))
+        self.mode = 'World Record'
+        self.current_level = 10
+
+    def render_and_update(self):
+        self.check_win()
+        super().render_and_update()
+        screen.blit(self.desk_surface, self.desk_rect)
+        surface = self.time_font.render(get_time(self.timer.get_time()), True, (255, 255, 255))
+        rect = surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 10 * 7,
+                                        Constants.WINDOW_SIZE[1] // 10 * 5))
+        screen.blit(surface, rect)
+
+    def check_win(self):
+        if self.lines_cleared > 100:
+            self.gameover = True
+
+    def load_music(self):
+        if self:
+            pygame.mixer.music.load(pack.main_theme_3)
+            pygame.mixer.music.play(-1)
+
 
 def get_random_block():
     return random.choice([BlockI(), BlockJ(), BlockL(), BlockO(), BlockS(), BlockT(), BlockZ()])
@@ -1201,12 +1255,12 @@ class BlockQueue:
         self.queue = list()
         for i in range(6):
             self.queue.append(get_random_block())
-        self.locked = None
+        self.holded = None
 
-    def lock(self):
+    def hold(self):
         game.BLOCK_ANCHOR.stop()
-        self.locked, game.current_block.block = game.current_block.get_type(), self.locked
-        game.locked = True
+        self.holded, game.current_block.block = game.current_block.get_type(), self.holded
+        game.holded = True
         self.audio_hold.set_volume(settings.AUDIO_VOLUME)
         self.audio_hold.play()
 
@@ -1218,8 +1272,8 @@ class BlockQueue:
         for i in range(len(self.queue)):
             screen.blit(self.queue[i].get_sprite_for_frame(),
                         (Constants.BLOCK_QUEUE_TOPLEFT[0], Constants.BLOCK_QUEUE_TOPLEFT[1] + i * 55))
-        if self.locked:
-            screen.blit(self.locked.get_sprite_for_frame(), Constants.LOCKED_BLOCK_TOPLEFT)
+        if self.holded:
+            screen.blit(self.holded.get_sprite_for_frame(), Constants.HOLDED_BLOCK_TOPLEFT)
 
 
 class Background:
@@ -2247,8 +2301,8 @@ class Button:
 
 
 class ProfileView:
-    def __init__(self, user: User):
-        self.stats = user.get_stats()
+    def __init__(self, u: User):
+        self.stats = u.get_stats()
 
     def render(self):
         pass
@@ -2338,7 +2392,8 @@ while True:
                 terminate()
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if level_selection.check_pos(event.pos):
-                    game = Game(level_selection.get_selected_level())
+                    #game = Marathon(level_selection.get_selected_level())
+                    game = WorldRecord()
                     program_state = Constants.INGAME
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -2351,21 +2406,18 @@ while True:
             if event.type == pygame.QUIT:
                 terminate()
             elif event.type == pygame.KEYDOWN:
-                try:
-                    if event.key == Settings.MOVE_LEFT_BUTTON:
-                        game.current_block.move_left = True
-                    elif event.key == Settings.MOVE_RIGHT_BUTTON:
-                        game.current_block.move_right = True
-                    elif event.key == Settings.ROTATE_LEFT_BUTTON:
-                        game.current_block.block.rotate()
-                    elif event.key == Settings.HARD_DROP_BUTTON:
-                        hard_drop_particle = HardDropParticle(*game.current_block.block.hard_drop(True))
-                    elif event.key == Settings.SOFT_DROP_BUTTON:
-                        game.current_block.move_down = True
-                    elif event.key == Settings.HOLD_BLOCK_BUTTON and game.may_lock():
-                        game.block_queue.lock()
-                except AttributeError:
-                    print(1)
+                if event.key == Settings.MOVE_LEFT_BUTTON:
+                    game.current_block.move_left = True
+                elif event.key == Settings.MOVE_RIGHT_BUTTON:
+                    game.current_block.move_right = True
+                elif event.key == Settings.ROTATE_LEFT_BUTTON:
+                    game.current_block.block.rotate()
+                elif event.key == Settings.HARD_DROP_BUTTON:
+                    hard_drop_particle = HardDropParticle(*game.current_block.block.hard_drop(True))
+                elif event.key == Settings.SOFT_DROP_BUTTON:
+                    game.current_block.move_down = True
+                elif event.key == Settings.HOLD_BLOCK_BUTTON and game.may_hold():
+                    game.block_queue.hold()
             elif event.type == pygame.KEYUP:
                 try:
                     if event.key == Settings.MOVE_LEFT_BUTTON:
@@ -2376,18 +2428,16 @@ while True:
                         game.current_block.move_down = False
                 except AttributeError:
                     print(2)
-            elif event.type == FALL_BLOCK_EVENT and not game.lose:
+            elif event.type == FALL_BLOCK_EVENT and not game.gameover:
                 try:
                     game.current_block.block.fall()
                 except AttributeError:
                     print(3)
 
         if game.is_countdown():
-            game.board.draw_board()
-            game.draw_score()
             game.countdown()
         else:
-            if not game.lose:
+            if not game.gameover:
                 game.render_and_update()
                 if game.BLOCK_ANCHOR.is_time():
                     if game.current_block.block.timer_set:
