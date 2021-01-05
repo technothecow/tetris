@@ -2,6 +2,7 @@ import random
 import sys
 import pygame
 import mysql.connector
+from cryptography import fernet
 
 
 class Constants:
@@ -35,7 +36,7 @@ class Constants:
     LOCKED_BLOCK_TOPLEFT = (FRAME_TOPLEFT[0] + 19, FRAME_TOPLEFT[1] + 54)
     FPS = 30
 
-    MAIL_SYMBOL_LIMIT = 20
+    MAIL_SYMBOL_LIMIT = 30
 
     MUSIC_MAIN_MENU = 'music/menu_theme.mp3'
 
@@ -43,6 +44,9 @@ class Constants:
 
     MARATHON = 0
     WIN, LOSE, NEUTRAL = 0, 1, 2
+
+    KEY = b'3P8EAvmBQTK9Oz_WQdpMlzGB9agTwxmNOp7IdDJCm08='
+    FERNET = fernet.Fernet(KEY)
 
 
 pygame.mixer.pre_init()
@@ -1334,8 +1338,8 @@ class MainMenu:
     surface_light = pygame.image.load('res/light.png').convert_alpha()
     audio_click = pygame.mixer.Sound('audio/main_menu_select.wav')
 
-    def __init__(self, user):
-        self.user = user
+    def __init__(self, u):
+        self.user = u
         self.buttons = list()
         self.surfaces = list()
         self.selected_button = None
@@ -1443,11 +1447,11 @@ class EndGameScreen:
 
         self.surface_frame.fill((86, 233, 204))
 
-        self.surface_back_to_menu = pygame.transform.scale(
-            pygame.image.load('res/main_menu_button.png').convert_alpha(),
-            (246, 70))
-        self.rect_back_to_menu = self.surface_back_to_menu.get_rect(
-            center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 2 + 250))
+        width = Constants.WINDOW_SIZE[0] // 5
+        height = Constants.WINDOW_SIZE[1] // 10
+        self.button_back_to_menu = Button(self.on_click, Constants.WINDOW_SIZE[0] // 2 - width // 2,
+                                          Constants.WINDOW_SIZE[1] // 20 * 16, width, height, 'Main menu',
+                                          (102, 204, 204))
 
         self.start_time = pygame.time.get_ticks()
         self.music_started = False
@@ -1471,12 +1475,12 @@ class EndGameScreen:
             surface = self.text_font.render(self.stats[i], True, (255, 255, 255))
             rect = surface.get_rect(midtop=(Constants.WINDOW_SIZE[0] // 2, 150 + 35 * i))
             screen.blit(surface, rect)
-        screen.blit(self.surface_back_to_menu, self.rect_back_to_menu)
+        self.button_back_to_menu.render()
         if self.fadeout_start_time is not None:
             self.fadeout()
 
-    def check_pos(self, pos):
-        if self.rect_back_to_menu.collidepoint(pos) and not self.back_to_menu_pressed:
+    def on_click(self):
+        if not self.back_to_menu_pressed:
             self.audio_ok.set_volume(settings.AUDIO_VOLUME)
             self.audio_ok.play()
             self.back_to_menu_pressed = True
@@ -1484,16 +1488,15 @@ class EndGameScreen:
 
     def fadeout(self):
         time = self.get_time()
-        if time < self.FADEOUT_TIME:
-            surface = pygame.surface.Surface(Constants.WINDOW_SIZE)
-            surface.set_alpha(time // (self.FADEOUT_TIME // 255))
-            try:
-                pygame.mixer.music.set_volume(
-                    Settings.MUSIC_VOLUME - time * (self.FADEOUT_TIME / Settings.MUSIC_VOLUME))
-            except ZeroDivisionError:
-                pass
-            screen.blit(surface, (0, 0))
-        else:
+        surface = pygame.surface.Surface(Constants.WINDOW_SIZE)
+        surface.set_alpha(time // (self.FADEOUT_TIME // 255))
+        try:
+            pygame.mixer.music.set_volume(
+                Settings.MUSIC_VOLUME - time * (self.FADEOUT_TIME / Settings.MUSIC_VOLUME))
+        except ZeroDivisionError:
+            pass
+        screen.blit(surface, (0, 0))
+        if not time < self.FADEOUT_TIME:
             global program_state
             program_state = Constants.MAIN_MENU
             pygame.mixer.music.load(Constants.MUSIC_MAIN_MENU)
@@ -1808,24 +1811,33 @@ class SoundGraphicPack:
 
 
 class Database:
-    def __init__(self, database, user, password, host):
+    def __init__(self, db, userr, password, host):
         self.database = mysql.connector.connect(
             host=host,
-            user=user,
+            user=userr,
             passwd=password,
-            database=database
+            database=db
         )
         self.cursor = self.database.cursor()
 
     def login(self, email, password):
-        self.cursor.execute('SELECT name FROM Users WHERE email = %s AND password = %s', (email, password))
-        r = list(self.cursor)
-        if len(r) == 1:
-            return r[0]
-        else:
+        self.cursor.execute('SELECT password FROM Users WHERE email = %s', (email,))
+        resp = list(self.cursor)
+        if len(resp) == 0:
             return False
+        else:
+            if password == Constants.FERNET.decrypt(resp[0][0].encode()).decode():
+                self.cursor.execute('SELECT name FROM Users WHERE email = %s', (email,))
+                resp = list(self.cursor)
+                return resp[0][0]
+            else:
+                return False
 
     def register(self, name, email, password):
+        try:
+            password = Constants.FERNET.encrypt(password.encode())
+        except fernet.InvalidToken:
+            return False
         if not self.is_username_taken(name) and not self.is_email_taken(email):
             self.execute('INSERT INTO Users (name, email, password, coins) VALUES (%s, %s, %s, 0)',
                          (name, email, password))
@@ -1848,17 +1860,17 @@ class Database:
     def get_stats(self, name):
         self.cursor.execute('SELECT * FROM Stats WHERE name = %s', (name,))
         d = dict()
-        r = iter(list(self.cursor)[0][1::])
-        d['games_played'] = next(r)
-        d['blocks_dropped'] = next(r)
-        d['best_score'] = next(r)
-        d['playtime'] = next(r)
-        d['rang'] = next(r)
-        d['wins'] = next(r)
-        d['loses'] = next(r)
-        d['experience'] = next(r)
-        d['tetrises'] = next(r)
-        d['world_record_time'] = next(r)
+        resp = iter(list(self.cursor)[0][1::])
+        d['games_played'] = next(resp)
+        d['blocks_dropped'] = next(resp)
+        d['best_score'] = next(resp)
+        d['playtime'] = next(resp)
+        d['rang'] = next(resp)
+        d['wins'] = next(resp)
+        d['loses'] = next(resp)
+        d['experience'] = next(resp)
+        d['tetrises'] = next(resp)
+        d['world_record_time'] = next(resp)
         return d
 
     def set_experience(self, name, experience):
@@ -1901,10 +1913,10 @@ class Database:
 
 
 class User:
-    def __init__(self, name, database):
+    def __init__(self, name, db):
         self.name = name
         self.stats = database.get_stats(name)
-        self.db = database
+        self.db = db
 
     def update(self):
         self.stats = self.db.get_stats(self.name)
@@ -1974,7 +1986,7 @@ class AuthorisationWindow:
 
     AUTHORISATION, ANIMATION_TO_DOT, ANIMATION_FROM_DOT, CONNECTION = 0, 1, 2, 3
 
-    def __init__(self, db : Database):
+    def __init__(self, db: Database):
         self.database = db
         self.size = [Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 10 * 4]
         self.frame = pygame.Surface(self.size)
@@ -2003,6 +2015,16 @@ class AuthorisationWindow:
         self.continue_button = Button(self.on_click, Constants.WINDOW_SIZE[0] // 10 * 4,
                                       Constants.WINDOW_SIZE[1] // 10 * 7, Constants.WINDOW_SIZE[0] // 10 * 2,
                                       Constants.WINDOW_SIZE[1] // 10 // 2, 'Continue', (102, 204, 204))
+
+        try:
+            with open('account', 'rb') as reader:
+                file = Constants.FERNET.decrypt(reader.read()).decode()
+            self.email_input.input_text, self.password_input.input_text = file.split()
+        except FileNotFoundError:
+            pass
+        except fernet.InvalidToken:
+            pass
+
         self.selected_input = None
         self.keys = list()
 
@@ -2029,7 +2051,12 @@ class AuthorisationWindow:
             res = self.database.login(self.email_input.get_text(), self.password_input.get_text())
             if not res:
                 self.status = self.ANIMATION_FROM_DOT
+                self.audio_alert.play()
                 return
+            with open('account', 'wb') as writer:
+                writer.write(
+                    Constants.FERNET.encrypt(
+                        (self.email_input.get_text() + ' ' + self.password_input.get_text()).encode()))
             return User(r, self.database)
         elif self.status == self.ANIMATION_FROM_DOT:
             self.render_animation_from_dot()
@@ -2075,7 +2102,6 @@ class AuthorisationWindow:
         self.email_input.render()
         self.password_input.render()
         self.continue_button.render()
-
 
 
 class LineEdit:
@@ -2127,20 +2153,22 @@ class LineEdit:
         screen.blit(white_surface, self.rect)
 
     def check_input(self, k):
-        temp_text = ''
-        for i in k:
-            if i in self.BUTTONS_TO_STRING:
-                temp_text += self.BUTTONS_TO_STRING[i]
-        if pygame.key.get_pressed()[1073742049]:
-            temp_text = temp_text.upper().replace('2', '@')
-        self.input_text += temp_text
+        if len(self.get_text()) < Constants.MAIL_SYMBOL_LIMIT:
+            temp_text = ''
+            for i in k:
+                if i in self.BUTTONS_TO_STRING:
+                    temp_text += self.BUTTONS_TO_STRING[i]
+            if pygame.key.get_pressed()[1073742049]:
+                temp_text = temp_text.upper().replace('2', '@')
+            self.input_text += temp_text
         if pygame.K_BACKSPACE in k:
             self.input_text = self.input_text[:-1]
 
     def render_selected(self):
         self.check_input(self.window.keys)
-        text = self.input_text if pygame.time.get_ticks() // 1000 % 2 == 0 else self.input_text
-        text_surface = self.font.render((text if not self.hidden else len(text) * '*') + '|', True, (255, 255, 255))
+        text = self.input_text if not self.hidden else len(self.input_text) * '*'
+        text_surface = self.font.render(text if pygame.time.get_ticks() // 1000 % 2 == 0 else text + '|',
+                                        True, (255, 255, 255))
         text_rect = text_surface.get_rect(center=(self.x + self.width // 2, self.y + self.height // 2))
         screen.blit(text_surface, text_rect)
         pygame.draw.rect(screen, 'white', self.rect, 1)
@@ -2218,6 +2246,14 @@ class Button:
         self.status = self.IDLE
 
 
+class ProfileView:
+    def __init__(self, user: User):
+        self.stats = user.get_stats()
+
+    def render(self):
+        pass
+
+
 def terminate():
     pygame.quit()
     sys.exit()
@@ -2225,8 +2261,8 @@ def terminate():
 
 FALL_BLOCK_EVENT = pygame.event.custom_type()
 
-database = Database(database=Constants.Database.DATABASE,
-                    user=Constants.Database.USER,
+database = Database(db=Constants.Database.DATABASE,
+                    userr=Constants.Database.USER,
                     password=Constants.Database.PASSWORD,
                     host=Constants.Database.HOST)
 
@@ -2364,8 +2400,6 @@ while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                gameover.check_pos(event.pos)
 
         gameover.render()
 
