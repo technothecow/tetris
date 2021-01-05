@@ -42,7 +42,7 @@ class Constants:
 
     PACK_DEFAULT = 'default'
 
-    MARATHON = 0
+    MARATHON, WORLDRECORD = 0, 1
     WIN, LOSE, NEUTRAL = 0, 1, 2
 
     KEY = b'3P8EAvmBQTK9Oz_WQdpMlzGB9agTwxmNOp7IdDJCm08='
@@ -1049,6 +1049,10 @@ class Game:
         self.holded = False
         pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME)
 
+        self.countdown_count = list()
+        for i in range(5):
+            self.countdown_count.append(True)
+
     def render_and_update(self):
         if self.current_block.block is None:
             self.next_block()
@@ -1071,19 +1075,24 @@ class Game:
 
     def countdown(self):
         game.board.draw_board()
-        if 0 <= self.get_current_time() < 50:
+        if 0 <= self.get_current_time() < 50 and self.countdown_count[0]:
             self.audio_ready.set_volume(settings.AUDIO_VOLUME)
             self.audio_ready.play()
-        elif 1000 <= self.get_current_time() < 1050:
+            self.countdown_count[0] = False
+        elif 1000 <= self.get_current_time() < 1050 and self.countdown_count[1]:
             self.audio_count.set_volume(settings.AUDIO_VOLUME)
             self.audio_count.play()
-        elif 2000 <= self.get_current_time() < 2050:
+            self.countdown_count[1] = False
+        elif 2000 <= self.get_current_time() < 2050 and self.countdown_count[2]:
             self.audio_count.play()
-        elif 3000 <= self.get_current_time() < 3050:
+            self.countdown_count[2] = False
+        elif 3000 <= self.get_current_time() < 3050 and self.countdown_count[3]:
             self.audio_count.play()
-        elif 4000 <= self.get_current_time() < 4050:
+            self.countdown_count[3] = False
+        elif 4000 <= self.get_current_time() < 4050 and self.countdown_count[4]:
             self.audio_go.set_volume(settings.AUDIO_VOLUME)
             self.audio_go.play()
+            self.countdown_count[4] = False
         elif 4500 <= self.get_current_time() < 4550:
             self.audio_game_start.set_volume(settings.AUDIO_VOLUME)
             self.audio_game_start.play()
@@ -1128,7 +1137,8 @@ class Marathon(Game):
         super().__init__()
         self.current_level = level
         pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // level)
-        self.mode = 'Marathon'
+        self.mode = Constants.MARATHON
+        self.result = False
 
     def render_and_update(self):
         super().render_and_update()
@@ -1215,28 +1225,42 @@ class WorldRecord(Game):
 
     def __init__(self):
         super().__init__()
-        self.timer = self.Timer()
+        self.timer = None
         self.time_font = pygame.font.Font('fonts/Orbitron-Bold.ttf', Constants.WINDOW_SIZE[1] // 20)
-        self.desk_surface = pygame.surface.Surface((Constants.WINDOW_SIZE[0] // 10 * 2, Constants.WINDOW_SIZE[1] // 10))
-        self.desk_rect = self.desk_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 10 * 7,
+        self.desk_surface = pygame.surface.Surface(
+            (Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 10 * 2))
+        self.desk_rect = self.desk_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 10 * 6,
                                                             Constants.WINDOW_SIZE[1] // 10 * 5))
         self.desk_surface.set_alpha(100)
         self.desk_surface.fill((102, 204, 204))
-        self.mode = 'World Record'
-        self.current_level = 10
+        self.mode = Constants.WORLDRECORD
+        self.current_level = 15
+        self.result = False
+
+    def countdown(self):
+        super().countdown()
+        self.timer = self.Timer()
 
     def render_and_update(self):
         self.check_win()
         super().render_and_update()
         screen.blit(self.desk_surface, self.desk_rect)
-        surface = self.time_font.render(get_time(self.timer.get_time()), True, (255, 255, 255))
-        rect = surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 10 * 7,
-                                        Constants.WINDOW_SIZE[1] // 10 * 5))
-        screen.blit(surface, rect)
+        surface_time_left = self.time_font.render(get_time(self.timer.get_time(), True), True, (255, 255, 255))
+        rect_time_left = surface_time_left.get_rect(center=(Constants.WINDOW_SIZE[0] // 10 * 6,
+                                                            Constants.WINDOW_SIZE[1] // 20 * 9))
+        surface_lines_left = self.time_font.render('Lines left: ' + str(self.get_lines_left()), True, (255, 255, 255))
+        rect_lines_left = surface_lines_left.get_rect(center=(Constants.WINDOW_SIZE[0] // 10 * 6,
+                                                              Constants.WINDOW_SIZE[1] // 20 * 11))
+        screen.blit(surface_time_left, rect_time_left)
+        screen.blit(surface_lines_left, rect_lines_left)
+
+    def get_lines_left(self):
+        return 100 - self.lines_cleared
 
     def check_win(self):
-        if self.lines_cleared > 100:
+        if self.lines_cleared >= 100:
             self.gameover = True
+            self.result = True
 
     def load_music(self):
         if self:
@@ -1475,9 +1499,12 @@ class MainMenu:
         screen.blit(self.surface_tetris_logo, self.rect_tetris_logo)
 
 
-def get_time(ms):
-    ms = ms // 1000
-    return f'{ms // 60 // 60}:{ms // 60 % 60}:{ms % 60}'
+def get_time(ms, with_ms=False):
+    if not with_ms:
+        ms = ms // 1000
+        return f'{ms // 60 // 60}:{ms // 60 % 60}:{ms % 60}'
+    ms = ms // 10
+    return f'{ms // 100 // 60}:{ms // 100 % 60}:{ms % 100}'
 
 
 class EndGameScreen:
@@ -1485,21 +1512,22 @@ class EndGameScreen:
     audio_gameover = pygame.mixer.Sound('audio/gameover.wav')
 
     def __init__(self):
+        time = game.get_current_time()
         self.stats = [f'Score: {str(game.score)}', f'Lines cleared: {str(game.lines_cleared)}',
-                      f'Time played: {get_time(game.get_current_time())}', '', f'Blocks placed: {str(game.blocks)}',
+                      f'Time played: {get_time(time)}', '', f'Blocks placed: {str(game.blocks)}',
                       f'Max combo: {str(game.max_combo)}', f'T-spins: {str(game.tspins)}',
                       f'Singles: {str(game.singles)}', f'Doubles: {str(game.doubles)}', f'Triples: {str(game.triples)}',
                       f'Tetris lines cleared: {str(game.tetrises)}']
+
         self.surface_frame = pygame.surface.Surface((500, 600))
         self.rect_frame = self.surface_frame.get_rect(
             center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 2))
+        self.surface_frame.fill((86, 233, 204))
+
         self.text_font = pygame.font.Font('fonts/Orbitron-Bold.ttf', 25)
         self.title_font = pygame.font.Font('fonts/Orbitron-Bold.ttf', 75)
-
         self.surface_title = self.title_font.render('Game over!', True, (255, 255, 255))
         self.rect_title = self.surface_title.get_rect(midtop=(500 // 2, 0))
-
-        self.surface_frame.fill((86, 233, 204))
 
         width = Constants.WINDOW_SIZE[0] // 5
         height = Constants.WINDOW_SIZE[1] // 10
@@ -1508,15 +1536,24 @@ class EndGameScreen:
                                           (102, 204, 204))
 
         self.start_time = pygame.time.get_ticks()
+
         self.music_started = False
         pygame.mixer.music.stop()
-
         self.audio_gameover.set_volume(settings.AUDIO_VOLUME)
         self.audio_gameover.play()
 
         self.back_to_menu_pressed = False
         self.fadeout_start_time = None
         self.FADEOUT_TIME = 2000
+
+        if game.mode == Constants.MARATHON:
+            user.add_marathon_game(game.score, game.lines_cleared, time, game.blocks, game.max_combo,
+                                   game.tspins, game.singles, game.doubles, game.triples, game.tetrises)
+        elif game.mode == Constants.WORLDRECORD:
+            user.add_world_record_game(game.score, game.lines_cleared, time, game.blocks,
+                                       game.max_combo, game.tspins, game.singles, game.doubles, game.triples,
+                                       game.tetrises)
+            user.add_world_record_time(time)
 
     def render(self):
         if not self.music_started and pygame.time.get_ticks() - self.start_time > 6000:
@@ -1975,6 +2012,11 @@ class User:
     def update(self):
         self.stats = self.db.get_stats(self.name)
 
+    def add_world_record_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles,
+                              doubles, triples, tetrises):
+        self.db.add_game(score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
+                         triples, tetrises, Constants.WORLDRECORD, self.name, Constants.NEUTRAL)
+
     def add_marathon_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
                           triples, tetrises):
         self.db.add_game(score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
@@ -2026,7 +2068,7 @@ class User:
         self.update()
 
     def add_world_record_time(self, time):
-        if self.stats['time'] > time or self.stats['time'] is None:
+        if self.stats['world_record_time'] > time or self.stats['world_record_time'] is None:
             self.db.set_world_record_time(self.name, time)
         self.update()
 
@@ -2308,6 +2350,10 @@ class ProfileView:
         pass
 
 
+class GameModeSelection:
+    pass
+
+
 def terminate():
     pygame.quit()
     sys.exit()
@@ -2315,15 +2361,23 @@ def terminate():
 
 FALL_BLOCK_EVENT = pygame.event.custom_type()
 
-database = Database(db=Constants.Database.DATABASE,
-                    userr=Constants.Database.USER,
-                    password=Constants.Database.PASSWORD,
-                    host=Constants.Database.HOST)
+connecting_to_db = True
+while connecting_to_db:
+    try:
+        database = Database(db=Constants.Database.DATABASE,
+                            userr=Constants.Database.USER,
+                            password=Constants.Database.PASSWORD,
+                            host=Constants.Database.HOST)
+    except mysql.connector.errors.DatabaseError as e:
+        print(e)
+    else:
+        connecting_to_db = False
 
 background = Background()
 start_screen = StartScreen()
 program_state = Constants.START_SCREEN
 level_selection, game, menu, gameover, settings, authorisation, user = None, None, None, None, Settings(), None, None
+game_mode_selection = None
 particles = pygame.sprite.Group()
 pack = SoundGraphicPack(Constants.PACK_DEFAULT)
 
@@ -2384,6 +2438,13 @@ while True:
 
         menu.render()
 
+    elif program_state == Constants.GAME_MODE_SELECTION:
+        if game_mode_selection is None:
+            game_mode_selection = GameModeSelection()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+
     elif program_state == Constants.LEVEL_SELECT:
         if level_selection is None:
             level_selection = LevelSelection()
@@ -2392,7 +2453,7 @@ while True:
                 terminate()
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if level_selection.check_pos(event.pos):
-                    #game = Marathon(level_selection.get_selected_level())
+                    # game = Marathon(level_selection.get_selected_level())
                     game = WorldRecord()
                     program_state = Constants.INGAME
             elif event.type == pygame.KEYDOWN:
