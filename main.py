@@ -12,7 +12,7 @@ class Constants:
         PASSWORD = 'j3S7PXimi6'
         DATABASE = 'sql7384872'
 
-    I, J, L, O, S, T, Z = 1, 2, 3, 4, 5, 6, 7
+    I, J, L, O, S, T, Z, GARBAGE = 1, 2, 3, 4, 5, 6, 7, 8
     MAIN_MENU, SETTINGS, START_SCREEN, SHOP, PAUSE, INGAME, LEVEL_SELECT, PROFILE = 1, 2, 3, 4, 5, 6, 7, 8
     ENDSCREEN, AUTHORISATION, GAME_MODE_SELECTION = 9, 10, 11
     SIDE_LENGTH = 32
@@ -101,6 +101,10 @@ class Board:
         self.sprite_single_Z.image = pygame.transform.scale(self.surface_single_Z,
                                                             (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
 
+        self.sprite_single_garbage = pygame.sprite.Sprite()
+        self.sprite_single_garbage.image = pygame.surface.Surface((Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+        self.sprite_single_garbage.image.fill((128, 128, 128))
+
         self.board = list()
         self.init_board()
         self.topleft_x, self.topleft_y = topleft
@@ -142,6 +146,8 @@ class Board:
             return self.sprite_single_T.image
         elif i == Constants.Z:
             return self.sprite_single_Z.image
+        elif i == Constants.GARBAGE:
+            return self.sprite_single_garbage.image
 
     def get_line(self, position, length, height):
         try:
@@ -176,10 +182,31 @@ class Board:
 
     def check_lines(self):
         lines = list()
+        trash_lines = list()
         for i in range(len(self.board)):
             if 0 not in self.board[i]:
-                lines.append(i)
+                if Constants.GARBAGE in self.board[i]:
+                    trash_lines.append(i)
+                else:
+                    lines.append(i)
         self.destroy_lines(lines)
+        self.destroy_trash_lines(trash_lines)
+
+    def destroy_trash_lines(self, trash_lines):
+        for line in trash_lines:
+            i = line
+            while i > 0:
+                self.board[i] = self.board[i - 1].copy()
+                i -= 1
+            game.add_garbage_line()
+
+    def add_garbage_line(self, empty_slot):
+        garbage_line = [0 if i == empty_slot else Constants.GARBAGE for i in range(Constants.BOARD_SIZE[0])].copy()
+        i = 0
+        while i < Constants.BOARD_SIZE[1] - 1:
+            self.board[i] = self.board[i + 1]
+            i += 1
+        self.board[-1] = garbage_line.copy()
 
     def destroy_lines(self, lines):
         if len(lines) == 0:
@@ -1053,19 +1080,37 @@ class Game:
         for i in range(5):
             self.countdown_count.append(True)
 
+        self.paused = False
+        self.pause = None
+
+        self.current_level = 1
+
+    def add_garbage_line(self):
+        pass
+
+    def toggle_pause(self):
+        self.paused = not self.paused
+        self.pause = None
+        self.BLOCK_ANCHOR.toggle_pause()
+        pygame.mixer.music.set_volume(Settings.MUSIC_VOLUME)
+
     def render_and_update(self):
-        if self.current_block.block is None:
-            self.next_block()
-
-        self.current_block.update()
-
         self.board.draw_board()
-        self.current_block.block.draw()
-        self.board.check_lose()
-        self.block_queue.render()
+        if self.paused:
+            if self.pause is None:
+                self.pause = Pause()
+            self.pause.render()
+        else:
+            if self.current_block.block is None:
+                self.next_block()
 
-        particles.update()
-        particles.draw(screen)
+            self.current_block.update()
+            self.current_block.block.draw()
+            self.board.check_lose()
+            self.block_queue.render()
+
+            particles.update()
+            particles.draw(screen)
 
     def get_current_time(self):
         return pygame.time.get_ticks() - self.start_time
@@ -1141,8 +1186,8 @@ class Marathon(Game):
         self.result = False
 
     def render_and_update(self):
-        super().render_and_update()
         self.draw_score()
+        super().render_and_update()
 
     def add_cleared_lines(self, lines):
         super().add_cleared_lines(lines)
@@ -1215,14 +1260,24 @@ class Marathon(Game):
         screen.blit(surface, rect)
 
 
+class Stopwatch:
+    def __init__(self):
+        self.start_time = pygame.time.get_ticks()
+        self.paused = False
+        self.pause_time = None
+
+    def get_time(self):
+        return pygame.time.get_ticks() - self.start_time
+
+    def toggle_pause(self):
+        self.paused = not self.paused
+        if self.paused:
+            self.pause_time = pygame.time.get_ticks()
+        else:
+            self.start_time += pygame.time.get_ticks() - self.pause_time
+
+
 class WorldRecord(Game):
-    class Timer:
-        def __init__(self):
-            self.start_time = pygame.time.get_ticks()
-
-        def get_time(self):
-            return pygame.time.get_ticks() - self.start_time
-
     def __init__(self):
         super().__init__()
         self.timer = None
@@ -1238,21 +1293,27 @@ class WorldRecord(Game):
         self.result = False
 
     def countdown(self):
+        self.timer = Stopwatch()
         super().countdown()
-        self.timer = self.Timer()
+
+    def toggle_pause(self):
+        super().toggle_pause()
+        self.timer.toggle_pause()
 
     def render_and_update(self):
         self.check_win()
+        if not self.paused:
+            screen.blit(self.desk_surface, self.desk_rect)
+            surface_time_left = self.time_font.render(get_time(self.timer.get_time(), True), True, (255, 255, 255))
+            rect_time_left = surface_time_left.get_rect(center=(Constants.WINDOW_SIZE[0] // 10 * 6,
+                                                                Constants.WINDOW_SIZE[1] // 20 * 9))
+            surface_lines_left = self.time_font.render('Lines left: ' + str(self.get_lines_left()), True,
+                                                       (255, 255, 255))
+            rect_lines_left = surface_lines_left.get_rect(center=(Constants.WINDOW_SIZE[0] // 10 * 6,
+                                                                  Constants.WINDOW_SIZE[1] // 20 * 11))
+            screen.blit(surface_time_left, rect_time_left)
+            screen.blit(surface_lines_left, rect_lines_left)
         super().render_and_update()
-        screen.blit(self.desk_surface, self.desk_rect)
-        surface_time_left = self.time_font.render(get_time(self.timer.get_time(), True), True, (255, 255, 255))
-        rect_time_left = surface_time_left.get_rect(center=(Constants.WINDOW_SIZE[0] // 10 * 6,
-                                                            Constants.WINDOW_SIZE[1] // 20 * 9))
-        surface_lines_left = self.time_font.render('Lines left: ' + str(self.get_lines_left()), True, (255, 255, 255))
-        rect_lines_left = surface_lines_left.get_rect(center=(Constants.WINDOW_SIZE[0] // 10 * 6,
-                                                              Constants.WINDOW_SIZE[1] // 20 * 11))
-        screen.blit(surface_time_left, rect_time_left)
-        screen.blit(surface_lines_left, rect_lines_left)
 
     def get_lines_left(self):
         return 100 - self.lines_cleared
@@ -1265,6 +1326,76 @@ class WorldRecord(Game):
     def load_music(self):
         if self:
             pygame.mixer.music.load(pack.main_theme_3)
+            pygame.mixer.music.play(-1)
+
+
+class GarbageTraining(Game):
+    def __init__(self, lines):
+        super().__init__()
+        self.lines = lines
+        self.garbage_lines_cleared = 0
+        self.timer = Stopwatch()
+
+        self.surface = pygame.surface.Surface((Constants.WINDOW_SIZE[0] // 20 * 9, Constants.WINDOW_SIZE[1] // 10 * 2))
+        self.surface.fill((102, 204, 204))
+        self.surface.set_alpha(100)
+        self.rect = self.surface.get_rect(topleft=(Constants.WINDOW_SIZE[0] // 10 * 5,
+                                                   Constants.WINDOW_SIZE[1] // 20 * 9))
+
+        self.stats_font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', Constants.WINDOW_SIZE[1] // 12)
+        self.timer_line_surface = self.stats_font.render('Time passed: ' + get_time(self.timer.get_time(), True),
+                                                         True, (255, 255, 255))
+        self.lines_left_surface = self.stats_font.render('Lines left: ' + str(self.lines), True, (255, 255, 255))
+        self.timer_line_rect = self.timer_line_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 20 * 14,
+                                                                        Constants.WINDOW_SIZE[1] // 10 * 5))
+        self.lines_left_rect = self.lines_left_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 20 * 14,
+                                                                        Constants.WINDOW_SIZE[1] // 10 * 6))
+
+        self.result = False
+
+        for i in range(10):
+            self.board.add_garbage_line(random.randint(0, Constants.BOARD_SIZE[0] - 1))
+
+        self.mode = Constants.TRAINING
+
+    def get_lines_left(self):
+        return self.lines - self.garbage_lines_cleared
+
+    def add_garbage_line(self):
+        self.garbage_lines_cleared += 1
+        if self.get_lines_left() >= 10:
+            self.board.add_garbage_line(random.randint(0, Constants.BOARD_SIZE[0] - 1))
+        self.lines_left_surface = self.stats_font.render('Lines left: ' + str(self.get_lines_left()),
+                                                         True, (255, 255, 255))
+
+    def countdown(self):
+        super().countdown()
+        self.timer = Stopwatch()
+
+    def toggle_pause(self):
+        super().toggle_pause()
+        self.timer.toggle_pause()
+
+    def render_and_update(self):
+        if not self.paused:
+            self.timer_line_surface = self.stats_font.render('Time passed: ' + get_time(self.timer.get_time(), True),
+                                                             True, (255, 255, 255))
+            self.timer_line_rect = self.timer_line_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 20 * 14,
+                                                                            Constants.WINDOW_SIZE[1] // 10 * 5))
+        screen.blit(self.surface, self.rect)
+        screen.blit(self.timer_line_surface, self.timer_line_rect)
+        screen.blit(self.lines_left_surface, self.lines_left_rect)
+        super().render_and_update()
+        self.check_win()
+
+    def check_win(self):
+        if self.get_lines_left() <= 0:
+            self.gameover = True
+            self.result = True
+
+    def load_music(self):
+        if self:
+            pygame.mixer.music.load(pack.main_theme)
             pygame.mixer.music.play(-1)
 
 
@@ -1422,7 +1553,8 @@ class MainMenu:
         self.surfaces = list()
         self.selected_button = None
         self.transition = True
-        self.transcript = {0: Constants.PROFILE, 1: Constants.LEVEL_SELECT, 2: Constants.SHOP, 3: Constants.SETTINGS,
+        self.transcript = {0: Constants.PROFILE, 1: Constants.GAME_MODE_SELECTION, 2: Constants.SHOP,
+                           3: Constants.SETTINGS,
                            4: -1}
         self.confirm_exit = False
         self.surface_tetris_logo = StartScreen.surface_tetris_logo
@@ -1554,6 +1686,8 @@ class EndGameScreen:
                                        game.max_combo, game.tspins, game.singles, game.doubles, game.triples,
                                        game.tetrises)
             user.add_world_record_time(time)
+        elif game.mode == Constants.TRAINING:
+            pass
 
     def render(self):
         if not self.music_started and pygame.time.get_ticks() - self.start_time > 6000:
@@ -1619,6 +1753,7 @@ class Settings:
     ROTATE_RIGHT_BUTTON = int(settings.__next__())
     HARD_DROP_BUTTON = int(settings.__next__())
     HOLD_BLOCK_BUTTON = int(settings.__next__())
+    PAUSE_BUTTON = pygame.K_ESCAPE
 
     pygame.mixer.music.set_volume(MUSIC_VOLUME)
 
@@ -1854,6 +1989,8 @@ class Timer:
     def __init__(self):
         self.start_time = pygame.time.get_ticks()
         self.time = None
+        self.paused = False
+        self.pause_start_time = None
 
     def start(self, time):
         self.start_time = pygame.time.get_ticks()
@@ -1867,6 +2004,13 @@ class Timer:
 
     def stop(self):
         self.time = None
+
+    def toggle_pause(self):
+        self.paused = not self.paused
+        if self.paused:
+            self.pause_start_time = pygame.time.get_ticks()
+        else:
+            self.start_time += self.pause_start_time
 
 
 class SoundGraphicPack:
@@ -2367,22 +2511,22 @@ class GameModeSelection:
         self.marathon_button = GameModePane(self.on_marathon_click, indent_x,
                                             indent_y, width,
                                             height, 'Marathon',
-                                            'Classic tetris mode', self.marathon_cover)
+                                            'Classic tetris mode', self.marathon_cover, self)
 
-        self.online_button = GameModePane(self.on_marathon_click, indent_x + (width + distance),
+        self.online_button = GameModePane(self.on_online_click, indent_x + (width + distance),
                                           indent_y, width,
                                           height, 'Online',
-                                          'Wanna test your skills?', self.online_cover)
+                                          'Wanna test your skills?', self.online_cover, self)
 
-        self.world_record_button = GameModePane(self.on_marathon_click, indent_x + (width + distance) * 2,
+        self.world_record_button = GameModePane(self.on_world_record_click, indent_x + (width + distance) * 2,
                                                 indent_y, width,
                                                 height, 'World record',
-                                                'Are you really that good?', self.world_record_cover)
+                                                'Are you really that good?', self.world_record_cover, self)
 
-        self.training_button = GameModePane(self.on_marathon_click, indent_x + (width + distance) * 3,
+        self.training_button = GameModePane(self.on_training_click, indent_x + (width + distance) * 3,
                                             indent_y, width,
                                             height, 'Training',
-                                            'Practice is the best way to learn', self.training_cover)
+                                            'Practice is the best way to learn', self.training_cover, self)
 
         self.title_font = pygame.font.Font('fonts/Nunito-Light.ttf', Constants.WINDOW_SIZE[1] // 10)
         self.title_surface = self.title_font.render('Select a game mode', True, (255, 255, 255))
@@ -2392,6 +2536,8 @@ class GameModeSelection:
         self.selected_mode = None
         self.timer = Timer()
 
+        self.clicked_after_main_menu = False
+
     def render(self):
         screen.blit(self.title_surface, self.title_rect)
         if self.selected_mode is None or not self.timer.is_time():
@@ -2399,14 +2545,22 @@ class GameModeSelection:
             self.online_button.render()
             self.world_record_button.render()
             self.training_button.render()
-        elif self.selected_mode == Constants.MARATHON:
-            self.render_marathon()
+            return
+        global game, program_state
+        program_state = Constants.INGAME
+        if self.selected_mode == Constants.MARATHON:
+            # self.render_marathon()
+            game = Marathon(1)
         elif self.selected_mode == Constants.ONLINE:
-            self.render_online()
+            # self.render_online()
+            pass
         elif self.selected_mode == Constants.WORLD_RECORD:
-            self.render_world_record()
+            # self.render_world_record()
+            game = WorldRecord()
         elif self.selected_mode == Constants.TRAINING:
-            self.render_training()
+            # self.render_training()
+            game = GarbageTraining(100)
+        del self
 
     def on_marathon_click(self):
         self.selected_mode = Constants.MARATHON
@@ -2436,7 +2590,8 @@ class GameModeSelection:
 class GameModePane:
     IDLE, HOVER, PRESSED = 0, 1, 2
 
-    def __init__(self, on_click, x, y, width, height, title, description, image):
+    def __init__(self, on_click, x, y, width, height, title, description, image, sender):
+        self.sender = sender
         self.on_click = on_click
         self.x, self.y, self.width, self.height, self.title = x, y, width, height, title
         self.description, self.image = description, image
@@ -2514,6 +2669,9 @@ class GameModePane:
     def get_state(self):
         if self.frame_rect.collidepoint(pygame.mouse.get_pos()):
             if True in pygame.mouse.get_pressed(3):
+                if not self.sender.clicked_after_main_menu:
+                    self.sender.clicked_after_main_menu = True
+                    return
                 self.state = self.PRESSED
                 self.image_surface.set_alpha(255)
                 return
@@ -2526,6 +2684,71 @@ class GameModePane:
         self.image_surface.set_alpha(200)
 
 
+class Pause:
+    pause_sound = pygame.mixer.Sound('audio/pause.wav')
+    pause_click = MainMenu.audio_click
+
+    def __init__(self):
+        self.width, self.height = Constants.WINDOW_SIZE[0] // 10 * 2, Constants.WINDOW_SIZE[1] // 10 * 5
+        self.frame_surface = pygame.surface.Surface((self.width, self.height))
+        self.frame_surface.fill((0, 153, 153))
+        self.frame_surface.set_alpha(150)
+        self.frame_rect = self.frame_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 2,
+                                                              Constants.WINDOW_SIZE[1] // 2))
+        self.x, self.y = self.frame_rect.topleft
+
+        self.title_font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', Constants.WINDOW_SIZE[1] // 10)
+        self.title_surface = self.title_font.render('Pause', True, (255, 255, 255))
+        self.title_rect = self.title_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 2,
+                                                              self.y + self.height // 5))
+
+        button_width = self.width // 10 * 8
+        button_height = self.height // 20 * 3
+
+        self.resume_button = Button(self.resume, self.x + self.width // 10, self.y + self.height // 20 * 8,
+                                    button_width, button_height, 'Resume', (0, 204, 204))
+        self.return_to_main_menu_button = Button(self.return_to_main_menu, self.x + self.width // 10,
+                                                 self.y + self.height // 20 * 12, button_width,
+                                                 button_height, 'Main menu', (0, 204, 204))
+        self.exit_button = Button(terminate, self.x + self.width // 10, self.y + self.height // 20 * 16, button_width,
+                                  button_height, 'Exit', (0, 204, 204))
+
+        self.black_surface = pygame.surface.Surface((Constants.WINDOW_SIZE[0], Constants.WINDOW_SIZE[1]))
+        self.black_surface.set_alpha(10)
+
+        self.pause_sound.play()
+
+        self.alpha_decrease = 5
+
+    def render(self):
+        alpha = self.black_surface.get_alpha()
+        if alpha < 150:
+            self.black_surface.set_alpha(alpha + self.alpha_decrease)
+            pygame.mixer.music.set_volume(
+                pygame.mixer.music.get_volume() - self.alpha_decrease * (
+                        Settings.MUSIC_VOLUME / (150 / self.alpha_decrease)))
+
+        screen.blit(self.black_surface, (0, 0))
+        screen.blit(self.frame_surface, self.frame_rect)
+        pygame.draw.rect(screen, 'white', self.frame_rect, 1)
+        screen.blit(self.title_surface, self.title_rect)
+        self.resume_button.render()
+        self.return_to_main_menu_button.render()
+        self.exit_button.render()
+
+    def resume(self):
+        self.pause_click.play()
+        game.toggle_pause()
+
+    def return_to_main_menu(self):
+        global game, program_state
+        self.pause_click.play()
+        game = None
+        program_state = Constants.MAIN_MENU
+        pygame.mixer.music.load(Constants.MUSIC_MAIN_MENU)
+        pygame.mixer.music.play(-1)
+
+
 def terminate():
     pygame.quit()
     sys.exit()
@@ -2534,6 +2757,7 @@ def terminate():
 FALL_BLOCK_EVENT = pygame.event.custom_type()
 
 connecting_to_db = True
+database = None
 while connecting_to_db:
     try:
         database = Database(db=Constants.Database.DATABASE,
@@ -2547,7 +2771,7 @@ while connecting_to_db:
 
 background = Background()
 start_screen = StartScreen()
-program_state = Constants.GAME_MODE_SELECTION
+program_state = Constants.START_SCREEN
 level_selection, game, menu, gameover, settings, authorisation, user = None, None, None, None, Settings(), None, None
 game_mode_selection = None
 particles = pygame.sprite.Group()
@@ -2607,6 +2831,7 @@ while True:
                     menu.audio_click.set_volume(settings.AUDIO_VOLUME)
                     menu.audio_click.play()
                     program_state = response if response is not None else Constants.MAIN_MENU
+                    pygame.mouse.set_pos(0, 0)
 
         menu.render()
 
@@ -2628,7 +2853,7 @@ while True:
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if level_selection.check_pos(event.pos):
                     # game = Marathon(level_selection.get_selected_level())
-                    game = WorldRecord()
+                    game = GarbageTraining(100)
                     program_state = Constants.INGAME
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -2637,6 +2862,8 @@ while True:
         level_selection.render()
 
     elif program_state == Constants.INGAME:
+        if game is None:
+            game = GarbageTraining(10)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
@@ -2661,9 +2888,11 @@ while True:
                         game.current_block.move_right = False
                     elif event.key == Settings.SOFT_DROP_BUTTON:
                         game.current_block.move_down = False
+                    elif event.key == Settings.PAUSE_BUTTON:
+                        game.toggle_pause()
                 except AttributeError:
                     print(2)
-            elif event.type == FALL_BLOCK_EVENT and not game.gameover:
+            elif event.type == FALL_BLOCK_EVENT and not game.gameover and not game.paused:
                 try:
                     game.current_block.block.fall()
                 except AttributeError:
@@ -2671,12 +2900,12 @@ while True:
 
         if game.is_countdown():
             game.countdown()
-        else:
+        elif game is not None:
             if not game.gameover:
-                game.render_and_update()
                 if game.BLOCK_ANCHOR.is_time():
                     if game.current_block.block.timer_set:
                         game.current_block.block.hard_drop(False)
+                game.render_and_update()
             else:
                 gameover = EndGameScreen()
                 program_state = Constants.ENDSCREEN
