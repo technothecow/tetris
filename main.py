@@ -14,7 +14,7 @@ class Constants:
 
     I, J, L, O, S, T, Z = 1, 2, 3, 4, 5, 6, 7
     MAIN_MENU, SETTINGS, START_SCREEN, SHOP, PAUSE, INGAME, LEVEL_SELECT, PROFILE = 1, 2, 3, 4, 5, 6, 7, 8
-    ENDSCREEN, AUTHORISATION = 9, 10
+    ENDSCREEN, AUTHORISATION, GAME_MODE_SELECTION = 9, 10, 11
     SIDE_LENGTH = 32
     HD = (1280, 720)
     FULL_HD = (1920, 1080)
@@ -42,7 +42,7 @@ class Constants:
 
     PACK_DEFAULT = 'default'
 
-    MARATHON, WORLDRECORD = 0, 1
+    MARATHON, WORLD_RECORD, TRAINING, ONLINE = 0, 1, 2, 3
     WIN, LOSE, NEUTRAL = 0, 1, 2
 
     KEY = b'3P8EAvmBQTK9Oz_WQdpMlzGB9agTwxmNOp7IdDJCm08='
@@ -1233,7 +1233,7 @@ class WorldRecord(Game):
                                                             Constants.WINDOW_SIZE[1] // 10 * 5))
         self.desk_surface.set_alpha(100)
         self.desk_surface.fill((102, 204, 204))
-        self.mode = Constants.WORLDRECORD
+        self.mode = Constants.WORLD_RECORD
         self.current_level = 15
         self.result = False
 
@@ -1549,7 +1549,7 @@ class EndGameScreen:
         if game.mode == Constants.MARATHON:
             user.add_marathon_game(game.score, game.lines_cleared, time, game.blocks, game.max_combo,
                                    game.tspins, game.singles, game.doubles, game.triples, game.tetrises)
-        elif game.mode == Constants.WORLDRECORD:
+        elif game.mode == Constants.WORLD_RECORD:
             user.add_world_record_game(game.score, game.lines_cleared, time, game.blocks,
                                        game.max_combo, game.tspins, game.singles, game.doubles, game.triples,
                                        game.tetrises)
@@ -2015,7 +2015,7 @@ class User:
     def add_world_record_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles,
                               doubles, triples, tetrises):
         self.db.add_game(score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
-                         triples, tetrises, Constants.WORLDRECORD, self.name, Constants.NEUTRAL)
+                         triples, tetrises, Constants.WORLD_RECORD, self.name, Constants.NEUTRAL)
 
     def add_marathon_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
                           triples, tetrises):
@@ -2351,7 +2351,179 @@ class ProfileView:
 
 
 class GameModeSelection:
-    pass
+    marathon_cover = pygame.image.load('res/covers/marathon.png').convert_alpha()
+    online_cover = pygame.image.load('res/covers/online.png').convert_alpha()
+    training_cover = pygame.image.load('res/covers/training.png').convert_alpha()
+    world_record_cover = pygame.image.load('res/covers/world_record.png').convert_alpha()
+
+    audio_select = MainMenu.audio_click
+
+    def __init__(self):
+        indent_x = Constants.WINDOW_SIZE[0] // 20 * 1
+        indent_y = Constants.WINDOW_SIZE[1] // 10 * 3
+        width, height = Constants.WINDOW_SIZE[0] // 10 * 2, Constants.WINDOW_SIZE[1] // 10 * 5
+        distance = (Constants.WINDOW_SIZE[0] - 2 * indent_x) // 4 - width
+
+        self.marathon_button = GameModePane(self.on_marathon_click, indent_x,
+                                            indent_y, width,
+                                            height, 'Marathon',
+                                            'Classic tetris mode', self.marathon_cover)
+
+        self.online_button = GameModePane(self.on_marathon_click, indent_x + (width + distance),
+                                          indent_y, width,
+                                          height, 'Online',
+                                          'Wanna test your skills?', self.online_cover)
+
+        self.world_record_button = GameModePane(self.on_marathon_click, indent_x + (width + distance) * 2,
+                                                indent_y, width,
+                                                height, 'World record',
+                                                'Are you really that good?', self.world_record_cover)
+
+        self.training_button = GameModePane(self.on_marathon_click, indent_x + (width + distance) * 3,
+                                            indent_y, width,
+                                            height, 'Training',
+                                            'Practice is the best way to learn', self.training_cover)
+
+        self.title_font = pygame.font.Font('fonts/Nunito-Light.ttf', Constants.WINDOW_SIZE[1] // 10)
+        self.title_surface = self.title_font.render('Select a game mode', True, (255, 255, 255))
+        self.title_rect = self.title_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 2,
+                                                              Constants.WINDOW_SIZE[1] // 20 * 3))
+
+        self.selected_mode = None
+        self.timer = Timer()
+
+    def render(self):
+        screen.blit(self.title_surface, self.title_rect)
+        if self.selected_mode is None or not self.timer.is_time():
+            self.marathon_button.render()
+            self.online_button.render()
+            self.world_record_button.render()
+            self.training_button.render()
+        elif self.selected_mode == Constants.MARATHON:
+            self.render_marathon()
+        elif self.selected_mode == Constants.ONLINE:
+            self.render_online()
+        elif self.selected_mode == Constants.WORLD_RECORD:
+            self.render_world_record()
+        elif self.selected_mode == Constants.TRAINING:
+            self.render_training()
+
+    def on_marathon_click(self):
+        self.selected_mode = Constants.MARATHON
+        self.hide_buttons()
+
+    def hide_buttons(self):
+        self.timer.start(1000)
+        self.audio_select.play()
+        self.online_button.hide = True
+        self.world_record_button.hide = True
+        self.training_button.hide = True
+        self.marathon_button.hide = True
+
+    def on_online_click(self):
+        self.selected_mode = Constants.ONLINE
+        self.hide_buttons()
+
+    def on_world_record_click(self):
+        self.selected_mode = Constants.WORLD_RECORD
+        self.hide_buttons()
+
+    def on_training_click(self):
+        self.selected_mode = Constants.TRAINING
+        self.hide_buttons()
+
+
+class GameModePane:
+    IDLE, HOVER, PRESSED = 0, 1, 2
+
+    def __init__(self, on_click, x, y, width, height, title, description, image):
+        self.on_click = on_click
+        self.x, self.y, self.width, self.height, self.title = x, y, width, height, title
+        self.description, self.image = description, image
+
+        self.frame_surface = pygame.surface.Surface((width, height))
+        self.frame_rect = self.frame_surface.get_rect(topleft=(x, y))
+
+        self.frame_surface.fill((102, 102, 204))
+        self.frame_surface.set_alpha(100)
+
+        self.state = self.IDLE
+
+        self.white_surface = pygame.surface.Surface((width, height))
+        self.white_surface.fill((255, 255, 255))
+        self.white_surface.set_alpha(50)
+        self.white_surface_increment = True
+
+        self.black_surface = pygame.surface.Surface((width, height))
+        self.black_surface.set_alpha(50)
+
+        self.title_font = pygame.font.Font('fonts/Nunito-Light.ttf', height // 10)
+        self.title_surface = self.title_font.render(title, True, (255, 255, 255))
+        self.title_rect = self.title_surface.get_rect(center=(x + width // 2, y + height // 10))
+
+        self.description_font = pygame.font.Font('fonts/Nunito-Light.ttf', height // 20)
+        self.description_surface = self.description_font.render(description, True, (255, 255, 255))
+        self.description_rect = self.description_surface.get_rect(center=(x + width // 2, y + height // 10 * 2))
+
+        self.image_surface = pygame.transform.scale(image, (width, height // 10 * 7))
+        self.image_rect = self.image_surface.get_rect(bottomright=(x + width, y + height))
+        self.image_surface.set_alpha(200)
+
+        self.hide = False
+        self.hide_speed = Constants.WINDOW_SIZE[1] // 10
+
+    def render(self):
+        if self.hide:
+            self.render_hide()
+        else:
+            self.get_state()
+        screen.blit(self.frame_surface, self.frame_rect)
+        screen.blit(self.title_surface, self.title_rect)
+        screen.blit(self.description_surface, self.description_rect)
+
+        screen.blit(self.image_surface, self.image_rect)
+
+        if self.state == self.HOVER:
+            self.render_hover()
+        elif self.state == self.PRESSED:
+            self.render_pressed()
+
+    def render_hide(self):
+        if self.frame_rect.centerx > -Constants.WINDOW_SIZE[0]:
+            self.frame_rect.centerx -= self.hide_speed
+            self.title_rect.centerx -= self.hide_speed
+            self.image_rect.centerx -= self.hide_speed
+            self.description_rect.centerx -= self.hide_speed
+
+    def render_hover(self):
+        pygame.draw.rect(screen, (255, 255, 255), self.frame_rect, 1)
+        self.update_white_surface()
+        screen.blit(self.white_surface, self.frame_rect)
+
+    def update_white_surface(self):
+        alpha = self.white_surface.get_alpha()
+        if alpha <= 25:
+            self.white_surface_increment = True
+        elif alpha >= 75:
+            self.white_surface_increment = False
+        self.white_surface.set_alpha(alpha + (1 if self.white_surface_increment else -1))
+
+    def render_pressed(self):
+        screen.blit(self.black_surface, self.frame_rect)
+
+    def get_state(self):
+        if self.frame_rect.collidepoint(pygame.mouse.get_pos()):
+            if True in pygame.mouse.get_pressed(3):
+                self.state = self.PRESSED
+                self.image_surface.set_alpha(255)
+                return
+            elif self.state == self.PRESSED:
+                self.on_click()
+            self.state = self.HOVER
+            self.image_surface.set_alpha(255)
+            return
+        self.state = self.IDLE
+        self.image_surface.set_alpha(200)
 
 
 def terminate():
@@ -2375,7 +2547,7 @@ while connecting_to_db:
 
 background = Background()
 start_screen = StartScreen()
-program_state = Constants.START_SCREEN
+program_state = Constants.GAME_MODE_SELECTION
 level_selection, game, menu, gameover, settings, authorisation, user = None, None, None, None, Settings(), None, None
 game_mode_selection = None
 particles = pygame.sprite.Group()
@@ -2444,6 +2616,8 @@ while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
+
+        game_mode_selection.render()
 
     elif program_state == Constants.LEVEL_SELECT:
         if level_selection is None:
