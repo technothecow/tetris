@@ -2212,7 +2212,7 @@ class User:
         self.update()
 
     def add_world_record_time(self, time):
-        if self.stats['world_record_time'] > time or self.stats['world_record_time'] is None:
+        if self.stats['world_record_time'] is None or self.stats['world_record_time'] > time:
             self.db.set_world_record_time(self.name, time)
         self.update()
 
@@ -2537,6 +2537,7 @@ class GameModeSelection:
         self.timer = Timer()
 
         self.clicked_after_main_menu = False
+        self.del_self = False
 
     def render(self):
         screen.blit(self.title_surface, self.title_rect)
@@ -2559,8 +2560,8 @@ class GameModeSelection:
             game = WorldRecord()
         elif self.selected_mode == Constants.TRAINING:
             # self.render_training()
-            game = GarbageTraining(100)
-        del self
+            game = GarbageTraining(10)
+        self.del_self = True
 
     def on_marathon_click(self):
         self.selected_mode = Constants.MARATHON
@@ -2745,6 +2746,7 @@ class Pause:
         self.pause_click.play()
         game = None
         program_state = Constants.MAIN_MENU
+        pygame.mixer.music.set_volume(Settings.MUSIC_VOLUME)
         pygame.mixer.music.load(Constants.MUSIC_MAIN_MENU)
         pygame.mixer.music.play(-1)
 
@@ -2831,7 +2833,6 @@ while True:
                     menu.audio_click.set_volume(settings.AUDIO_VOLUME)
                     menu.audio_click.play()
                     program_state = response if response is not None else Constants.MAIN_MENU
-                    pygame.mouse.set_pos(0, 0)
 
         menu.render()
 
@@ -2843,6 +2844,8 @@ while True:
                 terminate()
 
         game_mode_selection.render()
+        if game_mode_selection.del_self:
+            game_mode_selection = None
 
     elif program_state == Constants.LEVEL_SELECT:
         if level_selection is None:
@@ -2853,7 +2856,7 @@ while True:
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if level_selection.check_pos(event.pos):
                     # game = Marathon(level_selection.get_selected_level())
-                    game = GarbageTraining(100)
+                    game = GarbageTraining(10)
                     program_state = Constants.INGAME
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -2868,18 +2871,21 @@ while True:
             if event.type == pygame.QUIT:
                 terminate()
             elif event.type == pygame.KEYDOWN:
-                if event.key == Settings.MOVE_LEFT_BUTTON:
-                    game.current_block.move_left = True
-                elif event.key == Settings.MOVE_RIGHT_BUTTON:
-                    game.current_block.move_right = True
-                elif event.key == Settings.ROTATE_LEFT_BUTTON:
-                    game.current_block.block.rotate()
-                elif event.key == Settings.HARD_DROP_BUTTON:
-                    hard_drop_particle = HardDropParticle(*game.current_block.block.hard_drop(True))
-                elif event.key == Settings.SOFT_DROP_BUTTON:
-                    game.current_block.move_down = True
-                elif event.key == Settings.HOLD_BLOCK_BUTTON and game.may_hold():
-                    game.block_queue.hold()
+                try:
+                    if event.key == Settings.MOVE_LEFT_BUTTON:
+                        game.current_block.move_left = True
+                    elif event.key == Settings.MOVE_RIGHT_BUTTON:
+                        game.current_block.move_right = True
+                    elif event.key == Settings.ROTATE_LEFT_BUTTON:
+                        game.current_block.block.rotate()
+                    elif event.key == Settings.HARD_DROP_BUTTON:
+                        hard_drop_particle = HardDropParticle(*game.current_block.block.hard_drop(True))
+                    elif event.key == Settings.SOFT_DROP_BUTTON:
+                        game.current_block.move_down = True
+                    elif event.key == Settings.HOLD_BLOCK_BUTTON and game.may_hold():
+                        game.block_queue.hold()
+                except AttributeError:
+                    print(4)
             elif event.type == pygame.KEYUP:
                 try:
                     if event.key == Settings.MOVE_LEFT_BUTTON:
