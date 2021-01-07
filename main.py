@@ -1645,6 +1645,8 @@ class EndGameScreen:
 
     def __init__(self):
         time = game.get_current_time()
+        if isinstance(game, WorldRecord) or isinstance(game, GarbageTraining):
+            time = game.timer.get_time()
         self.stats = [f'Score: {str(game.score)}', f'Lines cleared: {str(game.lines_cleared)}',
                       f'Time played: {get_time(time)}', '', f'Blocks placed: {str(game.blocks)}',
                       f'Max combo: {str(game.max_combo)}', f'T-spins: {str(game.tspins)}',
@@ -1685,9 +1687,11 @@ class EndGameScreen:
             user.add_world_record_game(game.score, game.lines_cleared, time, game.blocks,
                                        game.max_combo, game.tspins, game.singles, game.doubles, game.triples,
                                        game.tetrises)
-            user.add_world_record_time(time)
+            if game.result:
+                user.add_world_record_time(time)
         elif game.mode == Constants.TRAINING:
-            pass
+            user.add_training_game(game.score, game.lines_cleared, time, game.blocks, game.max_combo, game.tspins,
+                                   game.singles, game.doubles, game.triples, game.tetrises)
 
     def render(self):
         if not self.music_started and pygame.time.get_ticks() - self.start_time > 6000:
@@ -2106,12 +2110,14 @@ class Database:
         d['experience'] = next(resp)
         d['tetrises'] = next(resp)
         d['world_record_time'] = next(resp)
+        self.cursor.execute('SELECT coins FROM Stats WHERE name = %s', (name,))
+        d['coins'] = list(self.cursor)[0][0]
         return d
 
     def set_experience(self, name, experience):
         self.execute('UPDATE Stats SET experience = %s WHERE name = %s', (experience, name))
 
-    def set_score(self, name, score):
+    def set_best_score(self, name, score):
         self.execute('UPDATE Stats SET best_score = %s WHERE name = %s', (score, name))
 
     def set_games(self, name, games):
@@ -2138,6 +2144,9 @@ class Database:
     def set_world_record_time(self, name, time):
         self.execute('UPDATE Stats SET world_record_time = %s WHERE name = %s', (time, name))
 
+    def set_coins(self, name, coins):
+        self.execute('UPDATE Users SET coins = %s WHERE name = %s', (coins, name))
+
     def add_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles, triples,
                  tetrises, gametype, players, result):
         self.execute('INSERT INTO Games (score, lines_cleared, time_played, blocks_placed, max_combo, tspins, '
@@ -2148,7 +2157,7 @@ class Database:
 
 
 class User:
-    def __init__(self, name, db):
+    def __init__(self, name, db: Database):
         self.name = name
         self.stats = database.get_stats(name)
         self.db = db
@@ -2160,14 +2169,31 @@ class User:
                               doubles, triples, tetrises):
         self.db.add_game(score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
                          triples, tetrises, Constants.WORLD_RECORD, self.name, Constants.NEUTRAL)
+        self.add_experience(game.score // 10)
+        self.add_coins(game.score // 10000)
+        self.update()
 
     def add_marathon_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
                           triples, tetrises):
         self.db.add_game(score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
                          triples, tetrises, Constants.MARATHON, self.name, Constants.NEUTRAL)
+        self.add_experience(game.score // 10)
+        self.add_coins(game.score // 10000)
+        self.update()
+
+    def add_training_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
+                          triples, tetrises):
+        self.db.add_game(score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles, triples,
+                         tetrises, Constants.TRAINING, self.name, Constants.NEUTRAL)
+        self.add_experience(game.score // 10)
+        self.add_coins(game.score // 10000)
+        self.update()
+
+    def add_coins(self, coins):
+        self.db.set_coins(self.name, self.stats['coins'] + coins)
 
     def add_experience(self, experience):
-        self.db.set_experince(self.name, self.stats['experience'] + experience)
+        self.db.set_experience(self.name, self.stats['experience'] + experience)
         self.update()
 
     def add_game(self, games=1):
@@ -2176,7 +2202,7 @@ class User:
 
     def add_score(self, score):
         if self.stats['best_score'] < score:
-            self.db.set_score(self.name, score)
+            self.db.set_best_score(self.name, score)
         self.update()
 
     def add_blocks_dropped(self, blocks):
@@ -2297,7 +2323,7 @@ class AuthorisationWindow:
                 writer.write(
                     Constants.FERNET.encrypt(
                         (self.email_input.get_text() + ' ' + self.password_input.get_text()).encode()))
-            return User(r, self.database)
+            return User(res, self.database)
         elif self.status == self.ANIMATION_FROM_DOT:
             self.render_animation_from_dot()
         return False
@@ -2564,6 +2590,9 @@ class GameModeSelection:
         self.del_self = True
 
     def on_marathon_click(self):
+        if not self.clicked_after_main_menu:
+            self.clicked_after_main_menu = True
+            return
         self.selected_mode = Constants.MARATHON
         self.hide_buttons()
 
@@ -2576,14 +2605,23 @@ class GameModeSelection:
         self.marathon_button.hide = True
 
     def on_online_click(self):
+        if not self.clicked_after_main_menu:
+            self.clicked_after_main_menu = True
+            return
         self.selected_mode = Constants.ONLINE
         self.hide_buttons()
 
     def on_world_record_click(self):
+        if not self.clicked_after_main_menu:
+            self.clicked_after_main_menu = True
+            return
         self.selected_mode = Constants.WORLD_RECORD
         self.hide_buttons()
 
     def on_training_click(self):
+        if not self.clicked_after_main_menu:
+            self.clicked_after_main_menu = True
+            return
         self.selected_mode = Constants.TRAINING
         self.hide_buttons()
 
@@ -2670,9 +2708,6 @@ class GameModePane:
     def get_state(self):
         if self.frame_rect.collidepoint(pygame.mouse.get_pos()):
             if True in pygame.mouse.get_pressed(3):
-                if not self.sender.clicked_after_main_menu:
-                    self.sender.clicked_after_main_menu = True
-                    return
                 self.state = self.PRESSED
                 self.image_surface.set_alpha(255)
                 return
@@ -2807,7 +2842,7 @@ while True:
         authorisation.keys = keys.copy()
 
         r = authorisation.render()
-        if r:
+        if isinstance(r, User):
             user = r
             program_state = Constants.MAIN_MENU
 
