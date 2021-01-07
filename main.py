@@ -1557,6 +1557,8 @@ class MainMenu:
         self.transcript = {0: Constants.PROFILE, 1: Constants.GAME_MODE_SELECTION, 2: Constants.SHOP,
                            3: Constants.SETTINGS,
                            4: -1}
+        self.profile_button = ProfileButton(Constants.WINDOW_SIZE[0] // 10 * 8, 0, Constants.WINDOW_SIZE[0] // 10 * 2,
+                                            Constants.WINDOW_SIZE[1] // 10)
         self.confirm_exit = False
         self.surface_tetris_logo = StartScreen.surface_tetris_logo
         self.rect_tetris_logo = StartScreen.rect_tetris_logo
@@ -1573,7 +1575,7 @@ class MainMenu:
             self.transition = False
 
     def load_buttons(self):
-        surface_profile = pygame.surface.Surface((Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 10))
+        surface_profile = pygame.surface.Surface((Constants.WINDOW_SIZE[0] // 10 * 2, Constants.WINDOW_SIZE[1] // 10))
         rect_profile = surface_profile.get_rect(topright=(Constants.WINDOW_SIZE[0], 0))
         self.buttons.append([surface_profile, rect_profile])
         surface_play = self.font_buttons.render('Play', True, (255, 255, 255))
@@ -1630,6 +1632,7 @@ class MainMenu:
                     self.buttons[self.selected_button][1])
             self.draw_buttons()
         screen.blit(self.surface_tetris_logo, self.rect_tetris_logo)
+        self.profile_button.render()
 
 
 def get_time(ms, with_ms=False, with_days=False):
@@ -2942,6 +2945,34 @@ class LevelLine:
 
         screen.blit(self.line_surface, self.line_rect)
         pygame.draw.rect(screen, 'white', self.line_box_rect, 1)
+
+
+class Shop:
+    def __init__(self):
+        pass
+
+
+class ProfileButton:
+    def __init__(self, x, y, width, height):
+        self.rect = pygame.rect.Rect((x, y), (width, height))
+        self.surface = pygame.Surface((width, height))
+        self.surface.fill((102, 204, 204))
+        self.surface.set_alpha(200)
+        self.font = pygame.font.Font('fonts/Nunito-Light.ttf', height)
+        name, level = user.name, str(user.get_current_level())
+        font_height = height
+        for i in range(20):
+            font_height = int(font_height * 0.9)
+            self.font = pygame.font.Font('fonts/Nunito-Light.ttf', font_height)
+            if self.font.size(name + '   ' + 'Lv.' + level)[0] <= width:
+                break
+        self.text_surface = self.font.render(name + '   ' + 'Lv.' + level, True, (255, 255, 255))
+        self.text_rect = self.text_surface.get_rect(center=(x + width // 2, y + height // 2))
+
+    def render(self):
+        screen.blit(self.surface, self.rect)
+        pygame.draw.rect(screen, 'white', self.rect, 1)
+        screen.blit(self.text_surface, self.text_rect)
 
 
 def terminate():
