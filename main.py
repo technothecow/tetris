@@ -1565,6 +1565,10 @@ class MainMenu:
         self.font_buttons = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', 60)
         self.load_buttons()
 
+    def update(self):
+        self.profile_button = ProfileButton(Constants.WINDOW_SIZE[0] // 10 * 8, 0, Constants.WINDOW_SIZE[0] // 10 * 2,
+                                            Constants.WINDOW_SIZE[1] // 10)
+
     def is_transition(self):
         return self.transition
 
@@ -1705,6 +1709,7 @@ class EndGameScreen:
         elif game.mode == Constants.TRAINING:
             user.add_training_game(game.score, game.lines_cleared, time, game.blocks, game.max_combo, game.tspins,
                                    game.singles, game.doubles, game.triples, game.tetrises)
+        user.update()
 
     def render(self):
         if not self.music_started and pygame.time.get_ticks() - self.start_time > 6000:
@@ -2128,8 +2133,10 @@ class Database:
         d['experience'] = next(resp)
         d['tetrises'] = next(resp)
         d['world_record_time'] = next(resp)
-        self.cursor.execute('SELECT coins FROM Stats WHERE name = %s', (name,))
+        self.cursor.execute('SELECT coins FROM Users WHERE name = %s', (name,))
         d['coins'] = list(self.cursor)[0][0]
+        self.cursor.execute('SELECT purchased FROM Users WHERE name = %s', (name,))
+        d['purchased'] = list(self.cursor)[0][0]
         return d
 
     def set_experience(self, name, experience):
@@ -2173,15 +2180,31 @@ class Database:
                      (score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
                       triples, tetrises, gametype, players, result))
 
+    def set_purchased(self, name, value):
+        self.execute('UPDATE Users SET purchased = %s WHERE name = %s', (value, name))
+
 
 class User:
     def __init__(self, name, db: Database):
         self.name = name
-        self.stats = database.get_stats(name)
         self.db = db
+        self.stats = self.db.get_stats(name)
 
     def update(self):
         self.stats = self.db.get_stats(self.name)
+
+    def add_pack(self, p):
+        self.db.set_purchased(self.name, str(self.stats['purchased']) + ';' + str(p))
+        self.update()
+
+    def get_purchased(self):
+        return self.stats['purchased'].split(';')
+
+    def subtract_coins(self, coins):
+        self.add_coins(-coins)
+
+    def get_coins(self):
+        return self.stats['coins']
 
     def get_current_level(self):
         return calculate_current_level(self.stats['experience'])
@@ -2190,7 +2213,9 @@ class User:
         return calculate_experience_to_next_level(self.stats['experience'])
 
     def get_experience_of_current_level(self):
-        return calculate_exp_for_level(self.get_current_level()) + self.stats['experience']
+        if self.get_current_level() > 1:
+            return self.stats['experience'] - calculate_exp_for_level(self.get_current_level())
+        return self.stats['experience']
 
     def add_world_record_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles,
                               doubles, triples, tetrises):
@@ -2948,8 +2973,191 @@ class LevelLine:
 
 
 class Shop:
+    coin_surface = pygame.image.load('res/coin.png').convert_alpha()
+
+    default_surface = pygame.image.load('res/default/default.png').convert()
+    classic_surface = pygame.image.load('res/classic/classic.png').convert()
+
     def __init__(self):
-        pass
+        self.title_font = pygame.font.Font('fonts/Nunito-Light.ttf', Constants.WINDOW_SIZE[1] // 10)
+        self.profile_title_surface = self.title_font.render('Shop', True, (255, 255, 255))
+        self.profile_title_rect = self.profile_title_surface.get_rect(midtop=(Constants.WINDOW_SIZE[0] // 10 * 2,
+                                                                              Constants.WINDOW_SIZE[1] // 10))
+
+        self.background_surface = pygame.Surface(
+            (Constants.WINDOW_SIZE[0] // 10 * 8, Constants.WINDOW_SIZE[1] // 10 * 8))
+        self.background_rect = self.background_surface.get_rect(topleft=(Constants.WINDOW_SIZE[0] // 10,
+                                                                         Constants.WINDOW_SIZE[1] // 10))
+        self.background_surface.fill((102, 204, 204))
+        self.background_surface.set_alpha(200)
+
+        self.balance_font = pygame.font.Font('fonts/Orbitron-Bold.ttf', Constants.WINDOW_SIZE[1] // 25)
+        self.balance_text_surface = self.balance_font.render(str(user.get_coins()), True, (255, 255, 255))
+        self.balance_text_rect = self.balance_text_surface.get_rect(bottomleft=(Constants.WINDOW_SIZE[0] // 10 * 8,
+                                                                                Constants.WINDOW_SIZE[1] // 10 * 2))
+        height = self.balance_text_surface.get_height()
+        self.coin_surface = pygame.transform.scale(self.coin_surface, (height, height))
+        self.coin_rect = self.coin_surface.get_rect(
+            bottomleft=(Constants.WINDOW_SIZE[0] // 10 * 8 + self.balance_text_surface.get_width(),
+                        Constants.WINDOW_SIZE[1] // 10 * 2))
+
+        self.dialog_window = None
+        self.selected_name = None
+
+        self.purchased = None
+        self.tiles = dict()
+        self.update_tiles()
+
+    def update_tiles(self):
+        self.purchased = user.get_purchased()
+
+        self.tiles = {'Default': PackTile(Constants.WINDOW_SIZE[0] // 10 * 2, Constants.WINDOW_SIZE[1] // 10 * 3,
+                                          Constants.WINDOW_SIZE[0] // 10, Constants.WINDOW_SIZE[1] // 10 * 2, 'Default',
+                                          100, self.default_surface, self.on_click, 0, self.purchased),
+                      'Classic': PackTile(Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 10 * 3,
+                                          Constants.WINDOW_SIZE[0] // 10, Constants.WINDOW_SIZE[1] // 10 * 2, 'Classic',
+                                          100, self.classic_surface, self.on_click, 1, self.purchased)}
+
+    def render(self):
+        pygame.draw.rect(screen, 'white', self.background_rect, 1)
+        screen.blit(self.background_surface, self.background_rect)
+        screen.blit(self.profile_title_surface, self.profile_title_rect)
+        screen.blit(self.balance_text_surface, self.balance_text_rect)
+        screen.blit(self.coin_surface, self.coin_rect)
+
+        for i in self.tiles:
+            self.tiles[i].render()
+
+        if self.dialog_window is not None:
+            self.dialog_window.render()
+
+    def on_click(self, tile):
+        if not tile.purchased:
+            self.dialog_window = DialogWindow(f'Are you sure you want to purchase {tile.name}?',
+                                              {'Yes': self.yes, 'No': self.no})
+            self.selected_name = tile.name
+        else:
+            global pack
+            pack = SoundGraphicPack(tile.name.lower())
+        self.update_tiles()
+
+    def yes(self):
+        self.dialog_window = None
+        if user.get_coins() >= self.tiles[self.selected_name].price:
+            user.subtract_coins(self.tiles[self.selected_name].price)
+            user.add_pack(self.tiles[self.selected_name].id)
+            self.update_tiles()
+        else:
+            self.dialog_window = DialogWindow(f'You don\'t have enough money to purchase this pack!', {'Ok': self.no})
+
+    def no(self):
+        self.dialog_window = None
+
+
+class DialogWindow:
+    def __init__(self, text, options: dict):
+        self.surface = pygame.Surface((Constants.WINDOW_SIZE[0] // 10 * 6, Constants.WINDOW_SIZE[1] // 10 * 3))
+        self.rect = self.surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 2))
+        x, y = self.rect.topleft
+        self.surface.fill((102, 204, 204))
+        self.surface.set_alpha(200)
+
+        self.font = pygame.font.Font('fonts/Nunito-Light.ttf', Constants.WINDOW_SIZE[1] // 10 // 2)
+        self.text_surface = self.font.render(text, True, (255, 255, 255))
+        self.text_rect = self.text_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 2,
+                                                            y + Constants.WINDOW_SIZE[1] // 10))
+
+        button_width, button_height = Constants.WINDOW_SIZE[0] // 10, Constants.WINDOW_SIZE[1] // 10
+        button_x = (Constants.WINDOW_SIZE[0] // 10 * 6) // (len(options) + 1)
+        button_y = y + Constants.WINDOW_SIZE[1] // 20 * 3
+
+        self.buttons = list()
+        i = 1
+        for t in options.keys():
+            bx = x + button_x * i - button_width // 2
+            self.buttons.append(Button(options[t], bx, button_y, button_width, button_height, t, (0, 204, 204)))
+            i += 1
+
+        self.black_surface = pygame.Surface(Constants.WINDOW_SIZE)
+        self.black_surface.set_alpha(100)
+
+    def render(self):
+        screen.blit(self.black_surface, (0, 0))
+        screen.blit(self.surface, self.rect)
+        pygame.draw.rect(screen, 'white', self.rect, 1)
+        screen.blit(self.text_surface, self.text_rect)
+        for button in self.buttons:
+            button.render()
+
+
+class PackTile:
+    IDLE, HOVER, HOVER_BUTTON = 0, 1, 2
+
+    def __init__(self, x, y, width, height, name, price, image, on_click, id, purchased):
+        self.purchased = str(id) in purchased
+        self.id = id
+        self.price = price
+        self.name = name
+        self.on_click = on_click
+        self.surface = pygame.Surface((width, height))
+        self.surface.fill((102, 204, 204))
+        self.surface.set_alpha(200)
+        self.rect = pygame.rect.Rect((x, y), (width, height))
+        self.image = pygame.transform.scale(image, (width // 10 * 8, height // 10 * 6))
+        self.image_rect = self.image.get_rect(topleft=(x + width // 10, y + height // 10 * 2))
+        self.font = pygame.font.Font('fonts/Nunito-Light.ttf', height // 10)
+        self.title_surface = self.font.render(name, True, (255, 255, 255))
+        self.title_rect = self.title_surface.get_rect(center=(x + width // 2, y + height // 10))
+
+        self.button_surface = pygame.Surface((width // 10 * 8, height // 10))
+        self.button_surface_hovered = pygame.Surface((width // 10 * 8, height // 10))
+        self.button_surface_hovered.fill((10, 152, 149))
+        self.button_surface.fill((8, 188, 190))
+        self.button_rect = self.button_surface.get_rect(topleft=(x + width // 10, y + height // 20 * 17))
+
+        if not self.purchased:
+            self.price_text_surface = self.font.render(str(price) + ' ', True, (255, 255, 255))
+            self.price_text_rect = self.price_text_surface.get_rect(center=(x + width // 2 - height // 12 // 2,
+                                                                            y + height // 20 * 18))
+
+            self.coin_surface = pygame.transform.scale(Shop.coin_surface, (height // 12, height // 12))
+            self.coin_rect = self.coin_surface.get_rect(midleft=self.price_text_rect.midright)
+        else:
+            self.price_text_surface = self.font.render('SELECT' if pack.name != self.name.lower() else 'SELECTED',
+                                                       True, (255, 255, 255))
+            self.price_text_rect = self.price_text_surface.get_rect(center=(x + width // 2,
+                                                                            y + height // 20 * 18))
+
+        self.state = self.IDLE
+
+    def render(self):
+        screen.blit(self.surface, self.rect)
+        screen.blit(self.image, self.image_rect)
+        screen.blit(self.title_surface, self.title_rect)
+
+        screen.blit(self.button_surface, self.button_rect)
+
+        self.check_state()
+        if self.state != self.IDLE:
+            pygame.draw.rect(screen, 'white', self.rect, 1)
+            if self.state == self.HOVER_BUTTON:
+                screen.blit(self.button_surface_hovered, self.button_rect)
+
+        screen.blit(self.price_text_surface, self.price_text_rect)
+        if not self.purchased:
+            screen.blit(self.coin_surface, self.coin_rect)
+
+    def check_state(self):
+        if self.rect.collidepoint(pygame.mouse.get_pos()):
+            if self.button_rect.collidepoint(pygame.mouse.get_pos()) and True not in pygame.mouse.get_pressed(3):
+                self.state = self.HOVER_BUTTON
+                return
+            if self.state == self.HOVER_BUTTON and True in pygame.mouse.get_pressed(3):
+                self.on_click(self)
+                return
+            self.state = self.HOVER
+        else:
+            self.state = self.IDLE
 
 
 class ProfileButton:
@@ -2999,7 +3207,7 @@ background = Background()
 start_screen = StartScreen()
 program_state = Constants.START_SCREEN
 level_selection, game, menu, gameover, settings, authorisation, user = None, None, None, None, Settings(), None, None
-game_mode_selection, profile = None, None
+game_mode_selection, profile, shop = None, None, None
 particles = pygame.sprite.Group()
 pack = SoundGraphicPack(Constants.PACK_DEFAULT)
 
@@ -3186,6 +3394,20 @@ while True:
 
         if profile is not None:
             profile.render()
+
+    elif program_state == Constants.SHOP:
+        if shop is None:
+            shop = Shop()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    program_state = Constants.MAIN_MENU
+                    shop = None
+
+        if shop is not None:
+            shop.render()
 
     elif program_state == -1:
         terminate()
