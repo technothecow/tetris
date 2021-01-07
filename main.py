@@ -3,6 +3,7 @@ import sys
 import pygame
 import mysql.connector
 from cryptography import fernet
+import math
 
 
 class Constants:
@@ -1631,10 +1632,13 @@ class MainMenu:
         screen.blit(self.surface_tetris_logo, self.rect_tetris_logo)
 
 
-def get_time(ms, with_ms=False):
+def get_time(ms, with_ms=False, with_days=False):
     if not with_ms:
         ms = ms // 1000
         return f'{ms // 60 // 60}:{ms // 60 % 60}:{ms % 60}'
+    if with_days:
+        ms = ms // 1000 // 60
+        return f'{ms // 60 // 24}:{ms // 60 % 24}:{ms % 60}'
     ms = ms // 10
     return f'{ms // 100 // 60}:{ms // 100 % 60}:{ms % 100}'
 
@@ -1680,9 +1684,15 @@ class EndGameScreen:
         self.fadeout_start_time = None
         self.FADEOUT_TIME = 2000
 
+        user.add_playtime(time)
+        user.add_blocks_dropped(game.blocks)
+        user.add_tetrises(game.tetrises)
+        user.add_game()
+
         if game.mode == Constants.MARATHON:
             user.add_marathon_game(game.score, game.lines_cleared, time, game.blocks, game.max_combo,
                                    game.tspins, game.singles, game.doubles, game.triples, game.tetrises)
+            user.add_score(game.score)
         elif game.mode == Constants.WORLD_RECORD:
             user.add_world_record_game(game.score, game.lines_cleared, time, game.blocks,
                                        game.max_combo, game.tspins, game.singles, game.doubles, game.triples,
@@ -1934,7 +1944,12 @@ class AdjustmentLine:
             self.value = (pos[0] - self.x) // self.value_per_pixel
 
     def get_value(self):
-        return int(self.value) / 100
+        if 3 <= self.value <= 97:
+            return int(self.value) / 100
+        elif 3 > self.value:
+            return 0
+        elif self.value > 97:
+            return 1
 
 
 class ControlsKey:
@@ -2164,6 +2179,15 @@ class User:
 
     def update(self):
         self.stats = self.db.get_stats(self.name)
+
+    def get_current_level(self):
+        return calculate_current_level(self.stats['experience'])
+
+    def get_experience_to_next_level(self):
+        return calculate_experience_to_next_level(self.stats['experience'])
+
+    def get_experience_of_current_level(self):
+        return calculate_exp_for_level(self.get_current_level()) + self.stats['experience']
 
     def add_world_record_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles,
                               doubles, triples, tetrises):
@@ -2786,6 +2810,140 @@ class Pause:
         pygame.mixer.music.play(-1)
 
 
+def calculate_current_level(experience):
+    return int((math.sqrt((2 * experience) + 30625) / 50) - 2.5)
+
+
+def calculate_exp_for_level(level):
+    return 1250 * level ** 2 + 6250 * level - 7500
+
+
+def calculate_experience_to_next_level(experience):
+    return calculate_exp_for_level(calculate_current_level(experience) + 1)
+
+
+class Profile:
+    def __init__(self):
+        self.title_font = pygame.font.Font('fonts/Nunito-Light.ttf', Constants.WINDOW_SIZE[1] // 10)
+        self.profile_title_surface = self.title_font.render('Profile', True, (255, 255, 255))
+        self.profile_title_rect = self.profile_title_surface.get_rect(midtop=(Constants.WINDOW_SIZE[0] // 10 * 2,
+                                                                              Constants.WINDOW_SIZE[1] // 10))
+        self.background_surface = pygame.surface.Surface((Constants.WINDOW_SIZE[0] // 10 * 8,
+                                                          Constants.WINDOW_SIZE[1] // 10 * 8))
+        self.background_surface.fill((102, 204, 204))
+        self.background_surface.set_alpha(150)
+        self.background_rect = self.background_surface.get_rect(
+            topleft=(Constants.WINDOW_SIZE[0] // 10, Constants.WINDOW_SIZE[1] // 10))
+
+        self.nickname_font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', Constants.WINDOW_SIZE[1] // 10)
+        self.nickname_surface = self.nickname_font.render(user.name, True, (255, 255, 255))
+        self.nickname_rect = self.nickname_surface.get_rect(topleft=(Constants.WINDOW_SIZE[0] // 20 * 3,
+                                                                     Constants.WINDOW_SIZE[1] // 10 * 2))
+
+        self.text_font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', Constants.WINDOW_SIZE[1] // 10 // 2)
+        self.games_played_surface = self.text_font.render('Games played: ' + str(user.stats['games_played']), True,
+                                                          (255, 255, 255))
+        self.games_played_rect = self.games_played_surface.get_rect(topleft=(Constants.WINDOW_SIZE[0] // 20 * 3,
+                                                                             Constants.WINDOW_SIZE[1] // 20 * 7))
+
+        self.time_played_surface = self.text_font.render('Playtime: ' + get_time(user.stats['playtime']), True,
+                                                         (255, 255, 255))
+        self.time_played_rect = self.time_played_surface.get_rect(topleft=(Constants.WINDOW_SIZE[0] // 20 * 3,
+                                                                           Constants.WINDOW_SIZE[1] // 20 * 8))
+
+        self.high_score_surface = self.text_font.render('High score: ' + str(user.stats['best_score']), True,
+                                                        (255, 255, 255))
+        self.high_score_rect = self.high_score_surface.get_rect(topleft=(Constants.WINDOW_SIZE[0] // 20 * 3,
+                                                                         Constants.WINDOW_SIZE[1] // 20 * 9))
+
+        self.blocks_dropped_surface = self.text_font.render('Blocks dropped: ' + str(user.stats['blocks_dropped']),
+                                                            True, (255, 255, 255))
+        self.blocks_dropped_rect = self.blocks_dropped_surface.get_rect(topleft=(Constants.WINDOW_SIZE[0] // 20 * 3,
+                                                                                 Constants.WINDOW_SIZE[1] // 20 * 10))
+
+        self.wins_surface = self.text_font.render('Wins: ' + str(user.stats['wins']), True, (255, 255, 255))
+        self.wins_rect = self.wins_surface.get_rect(topleft=(Constants.WINDOW_SIZE[0] // 20 * 3,
+                                                             Constants.WINDOW_SIZE[1] // 20 * 11))
+
+        self.loses_surface = self.text_font.render('Loses: ' + str(user.stats['loses']), True, (255, 255, 255))
+        self.loses_rect = self.loses_surface.get_rect(topleft=(Constants.WINDOW_SIZE[0] // 20 * 3,
+                                                               Constants.WINDOW_SIZE[1] // 20 * 12))
+
+        world_record_time = user.stats['world_record_time']
+        world_record_time = get_time(world_record_time) if world_record_time is not None else 'No information'
+        self.world_record_time_surface = self.text_font.render('World record time: ' + world_record_time, True,
+                                                               (255, 255, 255))
+        self.world_record_time_rect = self.world_record_time_surface.get_rect(
+            topleft=(Constants.WINDOW_SIZE[0] // 20 * 3, Constants.WINDOW_SIZE[1] // 20 * 13))
+
+        self.tetrises_surface = self.text_font.render('Lifetime tetris lines: ' + str(user.stats['tetrises']), True,
+                                                      (255, 255, 255))
+        self.tetrises_rect = self.tetrises_surface.get_rect(topleft=(Constants.WINDOW_SIZE[0] // 20 * 3,
+                                                                     Constants.WINDOW_SIZE[1] // 20 * 15))
+
+        current_level = user.get_current_level()
+        current_exp = user.get_experience_of_current_level()
+        exp_to_next_level = user.get_experience_to_next_level()
+
+        self.exp_line = LevelLine(Constants.WINDOW_SIZE[0] // 20 * 11, Constants.WINDOW_SIZE[1] // 20 * 5,
+                                  Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 10, current_level,
+                                  current_exp, exp_to_next_level)
+
+    def render(self):
+        screen.blit(self.background_surface, self.background_rect)
+        pygame.draw.rect(screen, 'white', self.background_rect, 1)
+        # screen.blit(self.profile_title_surface, self.profile_title_rect)
+        screen.blit(self.nickname_surface, self.nickname_rect)
+
+        screen.blit(self.games_played_surface, self.games_played_rect)
+        screen.blit(self.time_played_surface, self.time_played_rect)
+        screen.blit(self.high_score_surface, self.high_score_rect)
+        screen.blit(self.blocks_dropped_surface, self.blocks_dropped_rect)
+        screen.blit(self.wins_surface, self.wins_rect)
+        screen.blit(self.loses_surface, self.loses_rect)
+        screen.blit(self.world_record_time_surface, self.world_record_time_rect)
+        screen.blit(self.tetrises_surface, self.tetrises_rect)
+
+        self.exp_line.render()
+
+
+class LevelLine:
+    def __init__(self, x, y, width, height, current_level, current_exp, exp_to_next_level, line_color=(102, 204, 204),
+                 outline_color=(255, 255, 255)):
+        self.x, self.y, self.width, self.level, self.exp = x, y, width, current_level, current_exp
+        self.exp_to_next_level = exp_to_next_level
+        self.outline_color = outline_color
+        self.rect = pygame.rect.Rect((x, y), (width, height))
+        height = height // 3
+
+        self.line_box_rect = pygame.rect.Rect((x, y + height), (width, height))
+
+        self.font = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf', int(height * 0.9))
+        self.current_level_text_surface = self.font.render(str(current_level), True, (255, 255, 255))
+        self.next_level_text_surface = self.font.render(str(current_level + 1), True, (255, 255, 255))
+        self.current_exp_text_surface = self.font.render(str(current_exp), True, (255, 255, 255))
+        self.exp_to_next_level_surface = self.font.render(str(exp_to_next_level), True, (255, 255, 255))
+
+        self.current_level_text_rect = self.current_level_text_surface.get_rect(topleft=(x, y))
+        self.next_level_text_rect = self.next_level_text_surface.get_rect(topright=(x + width, y))
+        self.current_exp_text_rect = self.current_exp_text_surface.get_rect(bottomleft=(x, y + height * 3))
+        self.exp_to_next_level_rect = self.exp_to_next_level_surface.get_rect(bottomright=(x + width, y + height * 3))
+
+        self.line_surface = pygame.surface.Surface((int(width * (current_exp / exp_to_next_level)), height))
+        self.line_surface.fill(line_color)
+        self.line_surface.set_alpha(200)
+        self.line_rect = self.line_surface.get_rect(topleft=(x, y + height))
+
+    def render(self):
+        screen.blit(self.current_level_text_surface, self.current_level_text_rect)
+        screen.blit(self.next_level_text_surface, self.next_level_text_rect)
+        screen.blit(self.current_exp_text_surface, self.current_exp_text_rect)
+        screen.blit(self.exp_to_next_level_surface, self.exp_to_next_level_rect)
+
+        screen.blit(self.line_surface, self.line_rect)
+        pygame.draw.rect(screen, 'white', self.line_box_rect, 1)
+
+
 def terminate():
     pygame.quit()
     sys.exit()
@@ -2810,7 +2968,7 @@ background = Background()
 start_screen = StartScreen()
 program_state = Constants.START_SCREEN
 level_selection, game, menu, gameover, settings, authorisation, user = None, None, None, None, Settings(), None, None
-game_mode_selection = None
+game_mode_selection, profile = None, None
 particles = pygame.sprite.Group()
 pack = SoundGraphicPack(Constants.PACK_DEFAULT)
 
@@ -2983,6 +3141,20 @@ while True:
                     settings.check_adjustment_lines(event.pos)
 
         settings.render()
+
+    elif program_state == Constants.PROFILE:
+        if profile is None:
+            profile = Profile()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    program_state = Constants.MAIN_MENU
+                    profile = None
+
+        if profile is not None:
+            profile.render()
 
     elif program_state == -1:
         terminate()
