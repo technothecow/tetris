@@ -13,6 +13,9 @@ class Constants:
         PASSWORD = 'j3S7PXimi6'
         DATABASE = 'sql7384872'
 
+    class Errors:
+        WRONG_FERNET_TOKEN, USERNAME_TAKEN = 0, 1
+
     I, J, L, O, S, T, Z, GARBAGE = 1, 2, 3, 4, 5, 6, 7, 8
     MAIN_MENU, SETTINGS, START_SCREEN, SHOP, PAUSE, INGAME, LEVEL_SELECT, PROFILE = 1, 2, 3, 4, 5, 6, 7, 8
     ENDSCREEN, AUTHORISATION, GAME_MODE_SELECTION = 9, 10, 11
@@ -1749,6 +1752,7 @@ class EndGameScreen:
             pygame.mixer.music.load(Constants.MUSIC_MAIN_MENU)
             pygame.mixer.music.set_volume(Settings.MUSIC_VOLUME)
             pygame.mixer.music.play(-1)
+            menu.update()
 
     def get_time(self):
         return pygame.time.get_ticks() - self.fadeout_start_time
@@ -2099,13 +2103,13 @@ class Database:
         try:
             password = Constants.FERNET.encrypt(password.encode())
         except fernet.InvalidToken:
-            return False
+            return Constants.Errors.WRONG_FERNET_TOKEN
         if not self.is_username_taken(name) and not self.is_email_taken(email):
             self.execute('INSERT INTO Users (name, email, password, coins) VALUES (%s, %s, %s, 0)',
                          (name, email, password))
             self.execute('INSERT INTO Stats (name) VALUES (%s)', (name,))
             return True
-        return False
+        return Constants.Errors.USERNAME_TAKEN
 
     def is_username_taken(self, name):
         self.cursor.execute('SELECT * FROM Users WHERE name = %s', (name,))
@@ -2298,11 +2302,64 @@ class User:
         return self.stats
 
 
+KEYBOARD = 'qwertyuiopasdfghjklzxcvbnm'
+
+
+def check_letter_error(password):
+    flag1, flag2 = False, False
+    for letter in password:
+        if letter in KEYBOARD:
+            flag1 = True
+        elif letter in KEYBOARD.upper():
+            flag2 = True
+    return flag1 and flag2
+
+
+def check_digit_error(password):
+    for letter in password:
+        if letter.isdigit():
+            return True
+    return False
+
+
+def check_password(password):
+    if len(password) < 9:
+        return 'Password must contain at least 9 symbols'
+    if not check_letter_error(password):
+        return 'Password must contain lower-case and upper-case English letters'
+    if not check_digit_error(password):
+        return 'Password must contain at least one digit!'
+    return True
+
+
+def check_username(username):
+    if len(username) == 0:
+        return 'Username can\'t be blank'
+    if len(username) > 20:
+        return 'Username is way too long! 20 symbols is the limit!'
+    for i in username:
+        if i not in KEYBOARD + '1234567890' + KEYBOARD.upper():
+            return 'You may use only letters from English alphabet and numbers in your nickname!'
+    return True
+
+
+def check_email(email):
+    if '@' not in email or email.count('@') > 1:
+        return 'Email is incorrect'
+    mail, service = email.split('@')
+    if "." not in service or ".." in service:
+        return 'Email is incorrect'
+    for i in mail:
+        if i not in KEYBOARD + '1234567890' + KEYBOARD.upper():
+            return 'Email is incorrect'
+    return True
+
+
 class AuthorisationWindow:
     audio_click = MainMenu.audio_click
     audio_alert = pygame.mixer.Sound('audio/alert.wav')
 
-    AUTHORISATION, ANIMATION_TO_DOT, ANIMATION_FROM_DOT, CONNECTION = 0, 1, 2, 3
+    AUTHORISATION, ANIMATION_TO_DOT, ANIMATION_FROM_DOT, CONNECTION, REGISTRATION = 0, 1, 2, 3, 4
 
     def __init__(self, db: Database):
         self.database = db
@@ -2354,6 +2411,101 @@ class AuthorisationWindow:
         self.wrong_credentials_surface = self.error_font.render('', True, (255, 0, 0))
         self.wrong_credentials_rect = self.wrong_credentials_surface.get_rect(midtop=self.log_in_title_rect.midbottom)
 
+        self.sign_up_button = Button(self.sign_up_button_click, Constants.WINDOW_SIZE[0] // 10 * 9,
+                                     Constants.WINDOW_SIZE[1] // 10 * 9, Constants.WINDOW_SIZE[0] // 15,
+                                     Constants.WINDOW_SIZE[1] // 10 // 2, 'Sign up', (102, 204, 204))
+        self.log_in_button = Button(self.log_in_button_click, Constants.WINDOW_SIZE[0] // 10 * 9,
+                                    Constants.WINDOW_SIZE[1] // 10 * 9, Constants.WINDOW_SIZE[0] // 15,
+                                    Constants.WINDOW_SIZE[1] // 10 // 2, 'Log up', (102, 204, 204))
+
+        # sign in buttons and inputs
+
+        self.registrate_user_button = Button(self.registrate_user, Constants.WINDOW_SIZE[0] // 10 * 4,
+                                             Constants.WINDOW_SIZE[1] // 10 * 8, Constants.WINDOW_SIZE[0] // 10 * 2,
+                                             Constants.WINDOW_SIZE[1] // 20, 'Sign up', (102, 204, 204))
+        self.registration_username_input = LineEdit(Constants.WINDOW_SIZE[0] // 20 * 7,
+                                                    Constants.WINDOW_SIZE[1] // 10 * 5,
+                                                    Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 20,
+                                                    'Username', (102, 204, 204), 200, self, False)
+        self.registration_email_input = LineEdit(Constants.WINDOW_SIZE[0] // 20 * 7, Constants.WINDOW_SIZE[1] // 10 * 6,
+                                                 Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 20,
+                                                 'E-mail', (102, 204, 204), 200, self, False)
+        self.registration_password_input = LineEdit(Constants.WINDOW_SIZE[0] // 20 * 7,
+                                                    Constants.WINDOW_SIZE[1] // 10 * 7,
+                                                    Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 20,
+                                                    'Password', (102, 204, 204), 200, self, False)
+
+        self.sign_up_title_surface = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf',
+                                                      Constants.WINDOW_SIZE[1] // 25).render(
+            'Sign up', True, (255, 255, 255))
+
+        self.sign_up_title_rect = self.sign_up_title_surface.get_rect(midtop=(Constants.WINDOW_SIZE[0] // 2,
+                                                                              Constants.WINDOW_SIZE[1] // 40 * 17))
+
+        self.dialog_window = None
+
+    def sign_up_button_click(self):
+        self.audio_click.play()
+        self.status = self.REGISTRATION
+        self.email_input.input_text = ''
+        self.password_input.input_text = ''
+
+        self.size[1] = Constants.WINDOW_SIZE[1] // 10 * 5
+        self.frame = pygame.Surface(self.size)
+        self.frame.fill(self.color)
+        self.frame.set_alpha(self.alpha)
+        self.rect = pygame.rect.Rect((Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 10 * 4),
+                                     self.size)
+
+    def registrate_user(self):
+        self.audio_click.play()
+        username = self.registration_username_input.get_text()
+        check_username_result = check_username(username)
+        if check_username_result is True:
+            pass
+        else:
+            self.call_dialog_window(check_username_result)
+            return
+        email = self.registration_email_input.get_text()
+        check_email_result = check_email(email)
+        if check_email_result is True:
+            pass
+        else:
+            self.call_dialog_window(check_email_result)
+            return
+        password = self.registration_password_input.get_text()
+        check_password_result = check_password(password)
+        if check_password_result is True:
+            pass
+        else:
+            self.call_dialog_window(check_password_result)
+            return
+        res = self.database.register(username, email, password)
+        if res is True:
+            self.log_in_button_click()
+        elif res == Constants.Errors.WRONG_FERNET_TOKEN:
+            self.call_dialog_window('Critical Error! Wrong fernet token! Use only official releases')
+        elif res == Constants.Errors.USERNAME_TAKEN:
+            self.call_dialog_window('Username or email has already been taken!')
+
+    def close_dialog(self):
+        self.dialog_window = None
+
+    def call_dialog_window(self, text):
+        self.audio_alert.play()
+        self.dialog_window = DialogWindow(text, {'OK': self.close_dialog})
+
+    def log_in_button_click(self):
+        self.audio_click.play()
+        self.status = self.AUTHORISATION
+
+        self.size[1] = Constants.WINDOW_SIZE[1] // 10 * 4
+        self.frame = pygame.Surface(self.size)
+        self.frame.fill(self.color)
+        self.frame.set_alpha(self.alpha)
+        self.rect = pygame.rect.Rect((Constants.WINDOW_SIZE[0] // 10 * 3, Constants.WINDOW_SIZE[1] // 10 * 4),
+                                     self.size)
+
     def on_click(self):
         self.audio_click.play()
         self.status = self.ANIMATION_TO_DOT
@@ -2363,6 +2515,8 @@ class AuthorisationWindow:
         screen.blit(self.frame, self.rect)
         if self.status == self.AUTHORISATION:
             self.render_authorisation()
+        elif self.status == self.REGISTRATION:
+            self.render_registration()
         elif self.status == self.ANIMATION_TO_DOT:
             self.render_animation_to_dot()
         elif self.status == self.CONNECTION:
@@ -2379,6 +2533,17 @@ class AuthorisationWindow:
         elif self.status == self.ANIMATION_FROM_DOT:
             self.render_animation_from_dot()
         return False
+
+    def render_registration(self):
+        pygame.draw.rect(screen, 'white', self.rect, 1)
+        screen.blit(self.sign_up_title_surface, self.sign_up_title_rect)
+        self.registration_email_input.render()
+        self.registration_password_input.render()
+        self.registration_username_input.render()
+        self.log_in_button.render()
+        self.registrate_user_button.render()
+        if self.dialog_window is not None:
+            self.dialog_window.render()
 
     def render_animation_to_dot(self):
         if self.size[0] == 0 and self.size[1] == 0:
@@ -2420,6 +2585,7 @@ class AuthorisationWindow:
         self.email_input.render()
         self.password_input.render()
         self.continue_button.render()
+        self.sign_up_button.render()
 
 
 class LineEdit:
@@ -3056,20 +3222,22 @@ class Shop:
 
 class DialogWindow:
     def __init__(self, text, options: dict):
-        self.surface = pygame.Surface((Constants.WINDOW_SIZE[0] // 10 * 6, Constants.WINDOW_SIZE[1] // 10 * 3))
+        self.font = pygame.font.Font('fonts/Nunito-Light.ttf', Constants.WINDOW_SIZE[1] // 10 // 2)
+        self.text_surface = self.font.render(text, True, (255, 255, 255))
+
+        self.surface = pygame.Surface((Constants.WINDOW_SIZE[0] // 10 + self.text_surface.get_width(),
+                                       Constants.WINDOW_SIZE[1] // 10 * 2))
         self.rect = self.surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 2, Constants.WINDOW_SIZE[1] // 2))
         x, y = self.rect.topleft
         self.surface.fill((102, 204, 204))
         self.surface.set_alpha(200)
 
-        self.font = pygame.font.Font('fonts/Nunito-Light.ttf', Constants.WINDOW_SIZE[1] // 10 // 2)
-        self.text_surface = self.font.render(text, True, (255, 255, 255))
         self.text_rect = self.text_surface.get_rect(center=(Constants.WINDOW_SIZE[0] // 2,
-                                                            y + Constants.WINDOW_SIZE[1] // 10))
+                                                            y + Constants.WINDOW_SIZE[1] // 20))
 
-        button_width, button_height = Constants.WINDOW_SIZE[0] // 10, Constants.WINDOW_SIZE[1] // 10
-        button_x = (Constants.WINDOW_SIZE[0] // 10 * 6) // (len(options) + 1)
-        button_y = y + Constants.WINDOW_SIZE[1] // 20 * 3
+        button_width, button_height = Constants.WINDOW_SIZE[0] // 10, Constants.WINDOW_SIZE[1] // 20
+        button_x = self.surface.get_width() // (len(options) + 1)
+        button_y = y + Constants.WINDOW_SIZE[1] // 10
 
         self.buttons = list()
         i = 1
@@ -3093,9 +3261,9 @@ class DialogWindow:
 class PackTile:
     IDLE, HOVER, HOVER_BUTTON = 0, 1, 2
 
-    def __init__(self, x, y, width, height, name, price, image, on_click, id, purchased):
-        self.purchased = str(id) in purchased
-        self.id = id
+    def __init__(self, x, y, width, height, name, price, image, on_click, idd, purchased):
+        self.purchased = str(idd) in purchased
+        self.id = idd
         self.price = price
         self.name = name
         self.on_click = on_click
