@@ -4,6 +4,7 @@ import pygame
 import mysql.connector
 from cryptography import fernet
 import math
+import os
 
 
 class Constants:
@@ -1182,12 +1183,25 @@ class Game:
 
 
 class Marathon(Game):
-    def __init__(self, level):
+    def __init__(self, level, board=None, game_stats=None):
         super().__init__()
+        self.loaded_time = 0
+        if board is not None:
+            self.board.board = board.copy()
+            score, self.loaded_time, level = game_stats
+            self.score, self.start_time = score, pygame.time.get_ticks() - self.loaded_time
         self.current_level = level
         pygame.time.set_timer(FALL_BLOCK_EVENT, Constants.FALL_TIME // level)
         self.mode = Constants.MARATHON
         self.result = False
+
+    def is_countdown(self):
+        return pygame.time.get_ticks() - self.start_time - self.loaded_time < 4700
+
+    def get_current_time(self):
+        if self.is_countdown():
+            return pygame.time.get_ticks() - self.start_time - self.loaded_time
+        return pygame.time.get_ticks() - self.start_time
 
     def render_and_update(self):
         self.draw_score()
@@ -1425,6 +1439,7 @@ class BlockQueue:
 
     def pop(self, index):
         self.queue.append(get_random_block())
+        print(self.queue)
         return self.queue.pop(index)
 
     def render(self):
@@ -2120,8 +2135,22 @@ class Database:
         return bool(len(list(self.cursor)))
 
     def execute(self, *args):
-        self.cursor.execute(*args)
-        self.database.commit()
+        try:
+            self.cursor.execute(*args)
+            self.database.commit()
+        except Exception:
+            global database, connecting_to_db
+            connecting_to_db = True
+            while connecting_to_db:
+                try:
+                    database = Database(db=Constants.Database.DATABASE,
+                                        userr=Constants.Database.USER,
+                                        password=Constants.Database.PASSWORD,
+                                        host=Constants.Database.HOST)
+                except mysql.connector.errors.DatabaseError as error:
+                    print(error)
+                else:
+                    connecting_to_db = False
 
     def get_stats(self, name):
         self.cursor.execute('SELECT * FROM Stats WHERE name = %s', (name,))
@@ -2738,6 +2767,13 @@ class ProfileView:
         pass
 
 
+def board_to_string(board: list):
+    return ';'.join(['-'.join(list(map(str, i))) for i in board])
+
+def string_to_board(string: str):
+    return [list(map(int, i.split('-'))) for i in string.split(';')]
+
+
 class GameModeSelection:
     marathon_cover = pygame.image.load('res/covers/marathon.png').convert_alpha()
     online_cover = pygame.image.load('res/covers/online.png').convert_alpha()
@@ -2795,7 +2831,24 @@ class GameModeSelection:
         program_state = Constants.INGAME
         if self.selected_mode == Constants.MARATHON:
             # self.render_marathon()
-            game = Marathon(1)
+            try:
+                with open('last_game', 'rb') as reader:
+                    read = reader.read().split(b'\n')
+                board = Constants.FERNET.decrypt(read[0]).decode()
+                board = string_to_board(board)
+                game_stats = list(map(int, Constants.FERNET.decrypt(read[1]).decode().split()))
+                game = Marathon(1, board, game_stats)
+            except FileNotFoundError:
+                game = Marathon(1)
+            except fernet.InvalidToken:
+                game = Marathon(1)
+            except Exception as e:
+                print(e)
+                try:
+                    os.remove('last_game')
+                except FileNotFoundError:
+                    pass
+                game = Marathon(1)
         elif self.selected_mode == Constants.ONLINE:
             # self.render_online()
             pass
@@ -3469,6 +3522,15 @@ while True:
             game = GarbageTraining(10)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                if game.mode == Constants.MARATHON:
+                    try:
+                        with open('last_game', 'wb') as writer:
+                            writer.write(Constants.FERNET.encrypt(board_to_string(game.board.board).encode()))
+                            writer.write(b'\n')
+                            writer.write(Constants.FERNET.encrypt(
+                                f'{game.score} {game.get_current_time()} {game.current_level}'.encode()))
+                    except Exception as e:
+                        print(e)
                 terminate()
             elif event.type == pygame.KEYDOWN:
                 try:
