@@ -23,7 +23,7 @@ class Constants:
     SIDE_LENGTH = 32
     HD = (1280, 720)
     FULL_HD = (1920, 1080)
-    MY_SCREEN = (1300, 700)  # (1366, 768)
+    MY_SCREEN = (1366, 768) # (1300, 700)
     WINDOW_SIZE = MY_SCREEN
     FRAME_TOPLEFT = (50, 20)
     BOARD_TOPLEFT = (FRAME_TOPLEFT[0] + 99, FRAME_TOPLEFT[1] + 7)
@@ -58,7 +58,11 @@ pygame.mixer.pre_init()
 pygame.init()
 
 clock = pygame.time.Clock()
-screen = pygame.display.set_mode(Constants.WINDOW_SIZE)  # , pygame.FULLSCREEN)
+screen = pygame.display.set_mode(Constants.WINDOW_SIZE, pygame.FULLSCREEN)
+tribute = pygame.image.load('res/ErRPQA4VcAAwn5E.jpg')
+tribute = pygame.transform.scale(tribute, (Constants.WINDOW_SIZE[0], Constants.WINDOW_SIZE[0]))
+screen.blit(tribute, (0, 0))
+pygame.display.update()
 
 
 class Board:
@@ -2403,7 +2407,7 @@ class AuthorisationWindow:
         self.frame.fill(self.color)
         self.log_in_title_surface = pygame.font.Font('fonts/Jura-VariableFont_wght.ttf',
                                                      Constants.WINDOW_SIZE[1] // 25).render(
-            'Log in using Tetris Extra account', True, (255, 255, 255))
+            'Log in using Tetris Reloaded account', True, (255, 255, 255))
         self.log_in_title_rect = self.log_in_title_surface.get_rect(midtop=(Constants.WINDOW_SIZE[0] // 2,
                                                                             Constants.WINDOW_SIZE[1] // 40 * 17))
         self.email_input = LineEdit(Constants.WINDOW_SIZE[0] // 20 * 7,
@@ -3431,6 +3435,15 @@ level_selection, game, menu, gameover, settings, authorisation, user = None, Non
 game_mode_selection, profile, shop = None, None, None
 particles = pygame.sprite.Group()
 pack = SoundGraphicPack(Constants.PACK_DEFAULT)
+
+black_surface = pygame.Surface(Constants.WINDOW_SIZE)
+black_surface.set_alpha(0)
+for i in range(255):
+    screen.blit(tribute, (0, 0))
+    screen.blit(black_surface, (0, 0))
+    black_surface.set_alpha(i)
+    pygame.display.update()
+    pygame.time.wait(10)
 
 pygame.mixer.music.load(Constants.MUSIC_MAIN_MENU)
 pygame.mixer.music.play(-1)
