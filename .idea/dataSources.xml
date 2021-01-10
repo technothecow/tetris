@@ -5,7 +5,7 @@
       <driver-ref>mysql.8</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>com.mysql.cj.jdbc.Driver</jdbc-driver>
-      <jdbc-url>jdbc:mysql://sql7.freemysqlhosting.net:3306/sql7384872</jdbc-url>
+      <jdbc-url>jdbc:mysql://sql12.freemysqlhosting.net:3306/sql12386100</jdbc-url>
     </data-source>
   </component>
 </project>

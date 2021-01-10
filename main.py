@@ -5,14 +5,15 @@ import mysql.connector
 from cryptography import fernet
 import math
 import os
+import itertools
 
 
 class Constants:
     class Database:
-        HOST = 'sql7.freemysqlhosting.net'
-        USER = 'sql7384872'
-        PASSWORD = 'j3S7PXimi6'
-        DATABASE = 'sql7384872'
+        HOST = 'sql12.freemysqlhosting.net'
+        USER = 'sql12386100'
+        PASSWORD = 'iwTAVCxF2k'
+        DATABASE = 'sql12386100'
 
     class Errors:
         WRONG_FERNET_TOKEN, USERNAME_TAKEN = 0, 1
@@ -23,7 +24,7 @@ class Constants:
     SIDE_LENGTH = 32
     HD = (1280, 720)
     FULL_HD = (1920, 1080)
-    MY_SCREEN = (1366, 768) # (1300, 700)
+    MY_SCREEN = (1366, 768)  # (1300, 700)
     WINDOW_SIZE = MY_SCREEN
     FRAME_TOPLEFT = (50, 20)
     BOARD_TOPLEFT = (FRAME_TOPLEFT[0] + 99, FRAME_TOPLEFT[1] + 7)
@@ -1186,6 +1187,10 @@ class Game:
         self.holded = False
 
 
+class Online(Game):
+    pass
+
+
 class Marathon(Game):
     def __init__(self, level, board=None, game_stats=None):
         super().__init__()
@@ -1421,8 +1426,18 @@ class GarbageTraining(Game):
             pygame.mixer.music.play(-1)
 
 
+tetrominoes_chain = list()
+
+
 def get_random_block():
-    return random.choice([BlockI(), BlockJ(), BlockL(), BlockO(), BlockS(), BlockT(), BlockZ()])
+    global tetrominoes_chain
+    if len(tetrominoes_chain) == 0:
+        random_index = random.randint(0, 5040)
+        for i in list(itertools.permutations(
+                [BlockI(), BlockJ(), BlockL(), BlockO(), BlockS(), BlockT(), BlockZ()]))[random_index]:
+            tetrominoes_chain.append(i)
+
+    return tetrominoes_chain.pop(-1)
 
 
 class BlockQueue:
@@ -1443,7 +1458,6 @@ class BlockQueue:
 
     def pop(self, index):
         self.queue.append(get_random_block())
-        print(self.queue)
         return self.queue.pop(index)
 
     def render(self):
@@ -1903,11 +1917,11 @@ class Settings:
         self.button_selection = False
 
     def save_settings(self):
-        with open('settings', 'w', encoding='utf8') as writer:
+        with open('settings', 'w', encoding='utf8') as wr:
             s = f'{self.AUDIO_VOLUME}\n{self.MUSIC_VOLUME}\n{self.MOVE_LEFT_BUTTON}\n{self.MOVE_RIGHT_BUTTON}\n' \
                 f'{self.SOFT_DROP_BUTTON}\n{self.ROTATE_LEFT_BUTTON}\n{self.ROTATE_RIGHT_BUTTON}\n' \
                 f'{self.HARD_DROP_BUTTON}\n{self.HOLD_BLOCK_BUTTON}'
-            writer.write(s)
+            wr.write(s)
 
     def render(self):
         screen.blit(self.surface, self.rect)
@@ -2104,8 +2118,10 @@ class Database:
             database=db
         )
         self.cursor = self.database.cursor()
+        self.last_time_checked_db = pygame.time.get_ticks()
 
     def login(self, email, password):
+        self.update_db()
         self.cursor.execute('SELECT password FROM Users WHERE email = %s', (email,))
         resp = list(self.cursor)
         if len(resp) == 0:
@@ -2131,10 +2147,12 @@ class Database:
         return Constants.Errors.USERNAME_TAKEN
 
     def is_username_taken(self, name):
+        self.update_db()
         self.cursor.execute('SELECT * FROM Users WHERE name = %s', (name,))
         return bool(len(list(self.cursor)))
 
     def is_email_taken(self, email):
+        self.update_db()
         self.cursor.execute('SELECT * FROM Users WHERE email = %s', (email,))
         return bool(len(list(self.cursor)))
 
@@ -2147,16 +2165,20 @@ class Database:
             connecting_to_db = True
             while connecting_to_db:
                 try:
-                    database = Database(db=Constants.Database.DATABASE,
-                                        userr=Constants.Database.USER,
-                                        password=Constants.Database.PASSWORD,
-                                        host=Constants.Database.HOST)
+                    self.database = mysql.connector.connect(db=Constants.Database.DATABASE,
+                                                            userr=Constants.Database.USER,
+                                                            password=Constants.Database.PASSWORD,
+                                                            host=Constants.Database.HOST)
                 except mysql.connector.errors.DatabaseError as error:
                     print(error)
                 else:
                     connecting_to_db = False
+            self.cursor.execute(*args)
+            self.database.commit()
+        self.cursor = self.database.cursor()
 
     def get_stats(self, name):
+        self.update_db()
         self.cursor.execute('SELECT * FROM Stats WHERE name = %s', (name,))
         d = dict()
         resp = iter(list(self.cursor)[0][1::])
@@ -2219,6 +2241,28 @@ class Database:
 
     def set_purchased(self, name, value):
         self.execute('UPDATE Users SET purchased = %s WHERE name = %s', (value, name))
+
+    def update_db(self):
+        if pygame.time.get_ticks() - self.last_time_checked_db > 10000:
+            try:
+                self.cursor.execute('SELECT name FROM Users WHERE name = \'michael\'')
+                for i in self.cursor:
+                    print('проверка дб')
+                self.last_time_checked_db = pygame.time.get_ticks()
+            except Exception:
+                print('!!!')
+                connecting_to_db = True
+                while connecting_to_db:
+                    try:
+                        self.database = mysql.connector.connect(db=Constants.Database.DATABASE,
+                                                                user=Constants.Database.USER,
+                                                                password=Constants.Database.PASSWORD,
+                                                                host=Constants.Database.HOST)
+                    except mysql.connector.errors.DatabaseError as error:
+                        print(error)
+                    else:
+                        connecting_to_db = False
+                self.cursor = self.database.cursor()
 
 
 class User:
@@ -2558,8 +2602,8 @@ class AuthorisationWindow:
                 self.status = self.ANIMATION_FROM_DOT
                 self.audio_alert.play()
                 return
-            with open('account', 'wb') as writer:
-                writer.write(
+            with open('account', 'wb') as wr:
+                wr.write(
                     Constants.FERNET.encrypt(
                         (self.email_input.get_text() + ' ' + self.password_input.get_text()).encode()))
             return User(res, self.database)
@@ -2774,6 +2818,7 @@ class ProfileView:
 def board_to_string(board: list):
     return ';'.join(['-'.join(list(map(str, i))) for i in board])
 
+
 def string_to_board(string: str):
     return [list(map(int, i.split('-'))) for i in string.split(';')]
 
@@ -2823,6 +2868,8 @@ class GameModeSelection:
         self.clicked_after_main_menu = False
         self.del_self = False
 
+        self.dialog_window = None
+
     def render(self):
         screen.blit(self.title_surface, self.title_rect)
         if self.selected_mode is None or not self.timer.is_time():
@@ -2830,11 +2877,12 @@ class GameModeSelection:
             self.online_button.render()
             self.world_record_button.render()
             self.training_button.render()
+            if self.dialog_window is not None:
+                self.dialog_window.render()
             return
         global game, program_state
         program_state = Constants.INGAME
         if self.selected_mode == Constants.MARATHON:
-            # self.render_marathon()
             try:
                 with open('last_game', 'rb') as reader:
                     read = reader.read().split(b'\n')
@@ -2842,17 +2890,18 @@ class GameModeSelection:
                 board = string_to_board(board)
                 game_stats = list(map(int, Constants.FERNET.decrypt(read[1]).decode().split()))
                 game = Marathon(1, board, game_stats)
+                os.remove('last_game')
             except FileNotFoundError:
-                game = Marathon(1)
+                self.render_marathon()
             except fernet.InvalidToken:
-                game = Marathon(1)
-            except Exception as e:
-                print(e)
+                self.render_marathon()
+            except Exception as error:
+                print(error)
                 try:
                     os.remove('last_game')
                 except FileNotFoundError:
                     pass
-                game = Marathon(1)
+                self.render_marathon()
         elif self.selected_mode == Constants.ONLINE:
             # self.render_online()
             pass
@@ -2871,6 +2920,10 @@ class GameModeSelection:
         self.selected_mode = Constants.MARATHON
         self.hide_buttons()
 
+    def render_marathon(self):
+        global program_state
+        program_state = Constants.LEVEL_SELECT
+
     def hide_buttons(self):
         self.timer.start(1000)
         self.audio_select.play()
@@ -2883,8 +2936,12 @@ class GameModeSelection:
         if not self.clicked_after_main_menu:
             self.clicked_after_main_menu = True
             return
-        self.selected_mode = Constants.ONLINE
-        self.hide_buttons()
+        self.dialog_window = DialogWindow('Servers are unavailable', {'OK': self.close_dialog})
+
+    def close_dialog(self):
+        self.dialog_window = None
+        global game_mode_selection
+        game_mode_selection = None
 
     def on_world_record_click(self):
         if not self.clicked_after_main_menu:
@@ -3200,6 +3257,10 @@ class Shop:
 
     default_surface = pygame.image.load('res/default/default.png').convert()
     classic_surface = pygame.image.load('res/classic/classic.png').convert()
+    toys_surface = pygame.image.load('res/toys/toys.png').convert()
+    space_surface = pygame.image.load('res/space/space.png').convert()
+    mario_surface = pygame.image.load('res/mario/mario.png').convert()
+    kirby_surface = pygame.image.load('res/kirby/kirby.png').convert()
 
     def __init__(self):
         self.title_font = pygame.font.Font('fonts/Nunito-Light.ttf', Constants.WINDOW_SIZE[1] // 10)
@@ -3239,7 +3300,19 @@ class Shop:
                                           100, self.default_surface, self.on_click, 0, self.purchased),
                       'Classic': PackTile(Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 10 * 3,
                                           Constants.WINDOW_SIZE[0] // 10, Constants.WINDOW_SIZE[1] // 10 * 2, 'Classic',
-                                          100, self.classic_surface, self.on_click, 1, self.purchased)}
+                                          100, self.classic_surface, self.on_click, 1, self.purchased),
+                      'Space': PackTile(Constants.WINDOW_SIZE[0] // 10 * 6, Constants.WINDOW_SIZE[1] // 10 * 3,
+                                        Constants.WINDOW_SIZE[0] // 10, Constants.WINDOW_SIZE[1] // 10 * 2, 'Space',
+                                        100, self.space_surface, self.on_click, 2, self.purchased),
+                      'Toys': PackTile(Constants.WINDOW_SIZE[0] // 10 * 2, Constants.WINDOW_SIZE[1] // 10 * 6,
+                                       Constants.WINDOW_SIZE[0] // 10, Constants.WINDOW_SIZE[1] // 10 * 2, 'Toys',
+                                       100, self.toys_surface, self.on_click, 3, self.purchased),
+                      'Kirby': PackTile(Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 10 * 6,
+                                        Constants.WINDOW_SIZE[0] // 10, Constants.WINDOW_SIZE[1] // 10 * 2, 'Kirby',
+                                        1000, self.kirby_surface, self.on_click, 4, self.purchased),
+                      'Mario': PackTile(Constants.WINDOW_SIZE[0] // 10 * 6, Constants.WINDOW_SIZE[1] // 10 * 6,
+                                        Constants.WINDOW_SIZE[0] // 10, Constants.WINDOW_SIZE[1] // 10 * 2, 'Mario',
+                                        1000, self.mario_surface, self.on_click, 5, self.purchased)}
 
     def render(self):
         pygame.draw.rect(screen, 'white', self.background_rect, 1)
@@ -3270,6 +3343,11 @@ class Shop:
             user.subtract_coins(self.tiles[self.selected_name].price)
             user.add_pack(self.tiles[self.selected_name].id)
             self.update_tiles()
+
+            user.update()
+            self.balance_text_surface = self.balance_font.render(str(user.get_coins()), True, (255, 255, 255))
+            self.balance_text_rect = self.balance_text_surface.get_rect(bottomleft=(Constants.WINDOW_SIZE[0] // 10 * 8,
+                                                                                    Constants.WINDOW_SIZE[1] // 10 * 2))
         else:
             self.dialog_window = DialogWindow(f'You don\'t have enough money to purchase this pack!', {'Ok': self.no})
 
@@ -3434,14 +3512,14 @@ program_state = Constants.START_SCREEN
 level_selection, game, menu, gameover, settings, authorisation, user = None, None, None, None, Settings(), None, None
 game_mode_selection, profile, shop = None, None, None
 particles = pygame.sprite.Group()
-pack = SoundGraphicPack(Constants.PACK_DEFAULT)
+pack = SoundGraphicPack('default')
 
 black_surface = pygame.Surface(Constants.WINDOW_SIZE)
 black_surface.set_alpha(0)
-for i in range(255):
+for _ in range(255):
     screen.blit(tribute, (0, 0))
     screen.blit(black_surface, (0, 0))
-    black_surface.set_alpha(i)
+    black_surface.set_alpha(_)
     pygame.display.update()
     pygame.time.wait(10)
 
@@ -3473,6 +3551,7 @@ while True:
         authorisation.keys = keys.copy()
 
         r = authorisation.render()
+
         if isinstance(r, User):
             user = r
             program_state = Constants.MAIN_MENU
@@ -3480,6 +3559,8 @@ while True:
     elif program_state == Constants.MAIN_MENU:
         if menu is None:
             menu = MainMenu(user)
+        game_mode_selection = None
+        level_selection = None
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
@@ -3510,19 +3591,17 @@ while True:
                 terminate()
 
         game_mode_selection.render()
-        if game_mode_selection.del_self:
-            game_mode_selection = None
 
     elif program_state == Constants.LEVEL_SELECT:
         if level_selection is None:
             level_selection = LevelSelection()
+            game_mode_selection = None
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if level_selection.check_pos(event.pos):
-                    # game = Marathon(level_selection.get_selected_level())
-                    game = GarbageTraining(10)
+                    game = Marathon(level_selection.get_selected_level())
                     program_state = Constants.INGAME
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
