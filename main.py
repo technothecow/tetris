@@ -24,7 +24,7 @@ class Constants:
     SIDE_LENGTH = 32
     HD = (1280, 720)
     FULL_HD = (1920, 1080)
-    MY_SCREEN = (1366, 768)  # (1300, 700)
+    MY_SCREEN = (1300, 700)
     WINDOW_SIZE = MY_SCREEN
     FRAME_TOPLEFT = (50, 20)
     BOARD_TOPLEFT = (FRAME_TOPLEFT[0] + 99, FRAME_TOPLEFT[1] + 7)
@@ -59,7 +59,7 @@ pygame.mixer.pre_init()
 pygame.init()
 
 clock = pygame.time.Clock()
-screen = pygame.display.set_mode(Constants.WINDOW_SIZE, pygame.FULLSCREEN)
+screen = pygame.display.set_mode(Constants.WINDOW_SIZE)
 tribute = pygame.image.load('res/ErRPQA4VcAAwn5E.jpg')
 tribute = pygame.transform.scale(tribute, (Constants.WINDOW_SIZE[0], Constants.WINDOW_SIZE[0]))
 screen.blit(tribute, (0, 0))
@@ -2165,9 +2165,9 @@ class Database:
             connecting_to_db = True
             while connecting_to_db:
                 try:
-                    self.database = mysql.connector.connect(db=Constants.Database.DATABASE,
-                                                            userr=Constants.Database.USER,
-                                                            password=Constants.Database.PASSWORD,
+                    self.database = mysql.connector.connect(database=Constants.Database.DATABASE,
+                                                            user=Constants.Database.USER,
+                                                            passwd=Constants.Database.PASSWORD,
                                                             host=Constants.Database.HOST)
                 except mysql.connector.errors.DatabaseError as error:
                     print(error)
@@ -2805,14 +2805,6 @@ class Button:
             self.status = self.HOVER
             return
         self.status = self.IDLE
-
-
-class ProfileView:
-    def __init__(self, u: User):
-        self.stats = u.get_stats()
-
-    def render(self):
-        pass
 
 
 def board_to_string(board: list):
