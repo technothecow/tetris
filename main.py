@@ -1,3 +1,4 @@
+import hashlib
 import random
 import sys
 import pygame
@@ -10,10 +11,10 @@ import itertools
 
 class Constants:
     class Database:
-        HOST = 'sql12.freemysqlhosting.net'
-        USER = 'sql12386100'
-        PASSWORD = 'iwTAVCxF2k'
-        DATABASE = 'sql12386100'
+        HOST = 'yvu4xahse0smimsc.chr7pe7iynqr.eu-west-1.rds.amazonaws.com'
+        USER = 'lax9a7361e4vfouq'
+        PASSWORD = 'jsojpq85v0bnu450'
+        DATABASE = 'u96vdo4x19syc3cv'
 
     class Errors:
         WRONG_FERNET_TOKEN, USERNAME_TAKEN = 0, 1
@@ -44,7 +45,7 @@ class Constants:
 
     MAIL_SYMBOL_LIMIT = 30
 
-    MUSIC_MAIN_MENU = 'music/menu_theme.mp3'
+    MUSIC_MAIN_MENU = 'music/menu_theme.ogg'
 
     PACK_DEFAULT = 'default'
 
@@ -2111,77 +2112,140 @@ class SoundGraphicPack:
 
 class Database:
     def __init__(self, db, userr, password, host):
-        self.database = mysql.connector.connect(
-            host=host,
-            user=userr,
-            passwd=password,
-            database=db
-        )
-        self.cursor = self.database.cursor()
-        self.last_time_checked_db = pygame.time.get_ticks()
+        self.db, self.user, self.password, self.host = db, userr, password, host
+        self.check_database()
+
+    def check_database(self):
+        print('[DATABASE] Starting checking...')
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+
+        cursor.execute('SHOW TABLES')
+        tables = [i[0] for i in list(cursor)]
+        if 'users' not in tables:
+            print('[DATABASE] users table is not found. Creating one...')
+            cursor.execute("CREATE TABLE users (id int PRIMARY KEY auto_increment, username VARCHAR(50), "
+                           "password VARCHAR(32), email VARCHAR(50), coins int DEFAULT 0, "
+                           "purchased VARCHAR(50) DEFAULT '0;')")
+        elif 'stats' not in tables:
+            print('[DATABASE] stats table is not found. Creating one...')
+            cursor.execute('CREATE TABLE stats (username VARCHAR(50) PRIMARY KEY, games_played int DEFAULT 0, '
+                           'blocks_dropped int DEFAULT 0, best_score int DEFAULT 0, playtime int DEFAULT 0, '
+                           'rang int DEFAULT 0, wins int DEFAULT 0, loses int DEFAULT 0, experience int DEFAULT 0, '
+                           'tetrises int DEFAULT 0, world_record_time int)')
+        elif 'games' not in tables:
+            print('[DATABASE] games table is not found. Creating one...')
+            cursor.execute('CREATE TABLE games(id int auto_increment primary key, score int, lines_cleared int, '
+                           'time_played int, blocks_placed int, max_combo int, tspins int, singles int, doubles int, '
+                           'triples int, tetrises int, gametype int, player_one varchar(50) null, '
+                           'player_two varchar(50) null, result int);')
+
+        cursor.execute('DESCRIBE users')
+        if list(cursor) != [('id', b'int', 'NO', bytearray(b'PRI'), None, 'auto_increment'),
+                            ('username', b'varchar(50)', 'YES', bytearray(b''), None, ''),
+                            ('password', b'varchar(32)', 'YES', bytearray(b''), None, ''),
+                            ('email', b'varchar(50)', 'YES', bytearray(b''), None, ''),
+                            ('coins', b'int', 'YES', bytearray(b''), b'0', ''),
+                            ('purchased', b'varchar(50)', 'YES', bytearray(b''), b'0;', '')]:
+            print('[DATABASE] Bad users table, recreating one...')
+            cursor.execute('DROP TABLE users')
+            cursor.execute("CREATE TABLE users (id int PRIMARY KEY auto_increment, username VARCHAR(50), "
+                           "password VARCHAR(32), email VARCHAR(50), coins int DEFAULT 0, "
+                           "purchased VARCHAR(50) DEFAULT '0;')")
+        cursor.execute('DESCRIBE stats')
+        if list(cursor) != [('username', b'varchar(50)', 'NO', bytearray(b'PRI'), None, ''),
+                            ('games_played', b'int', 'YES', bytearray(b''), b'0', ''),
+                            ('blocks_dropped', b'int', 'YES', bytearray(b''), b'0', ''),
+                            ('best_score', b'int', 'YES', bytearray(b''), b'0', ''),
+                            ('playtime', b'int', 'YES', bytearray(b''), b'0', ''),
+                            ('rang', b'int', 'YES', bytearray(b''), b'0', ''),
+                            ('wins', b'int', 'YES', bytearray(b''), b'0', ''),
+                            ('loses', b'int', 'YES', bytearray(b''), b'0', ''),
+                            ('experience', b'int', 'YES', bytearray(b''), b'0', ''),
+                            ('tetrises', b'int', 'YES', bytearray(b''), b'0', ''),
+                            ('world_record_time', b'int', 'YES', bytearray(b''), None, '')]:
+            print('[DATABASE] Bad stats table, recreating one...')
+            cursor.execute('DROP TABLE stats')
+            cursor.execute('CREATE TABLE stats (username VARCHAR(50) PRIMARY KEY, games_played int DEFAULT 0, '
+                           'blocks_dropped int DEFAULT 0, best_score int DEFAULT 0, playtime int DEFAULT 0, '
+                           'rang int DEFAULT 0, wins int DEFAULT 0, loses int DEFAULT 0, experience int DEFAULT 0, '
+                           'tetrises int DEFAULT 0, world_record_time int)')
+        cursor.execute('DESCRIBE games')
+        if list(cursor) != [('id', b'int', 'NO', bytearray(b'PRI'), None, 'auto_increment'),
+                            ('score', b'int', 'YES', bytearray(b''), None, ''),
+                            ('lines_cleared', b'int', 'YES', bytearray(b''), None, ''),
+                            ('time_played', b'int', 'YES', bytearray(b''), None, ''),
+                            ('blocks_placed', b'int', 'YES', bytearray(b''), None, ''),
+                            ('max_combo', b'int', 'YES', bytearray(b''), None, ''),
+                            ('tspins', b'int', 'YES', bytearray(b''), None, ''),
+                            ('singles', b'int', 'YES', bytearray(b''), None, ''),
+                            ('doubles', b'int', 'YES', bytearray(b''), None, ''),
+                            ('triples', b'int', 'YES', bytearray(b''), None, ''),
+                            ('tetrises', b'int', 'YES', bytearray(b''), None, ''),
+                            ('gametype', b'int', 'YES', bytearray(b''), None, ''),
+                            ('player_one', b'varchar(50)', 'YES', bytearray(b''), None, ''),
+                            ('player_two', b'varchar(50)', 'YES', bytearray(b''), None, ''),
+                            ('result', b'int', 'YES', bytearray(b''), None, '')]:
+            print('[DATABASE] Bad games table, recreating one...')
+            cursor.execute('DROP TABLE games')
+            cursor.execute('CREATE TABLE games(id int auto_increment primary key, score int, lines_cleared int, '
+                           'time_played int, blocks_placed int, max_combo int, tspins int, singles int, doubles int, '
+                           'triples int, tetrises int, gametype int, player_one varchar(50) null, '
+                           'player_two varchar(50) null, result int);')
+        print('[DATABASE] Check is done.')
+        db.commit()
 
     def login(self, email, password):
-        self.update_db()
-        self.cursor.execute('SELECT password FROM Users WHERE email = %s', (email,))
-        resp = list(self.cursor)
-        if len(resp) == 0:
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('SELECT password FROM users WHERE email = %s', (email,))
+        response = list(cursor)
+        if len(response) == 0:
             return False
-        else:
-            if password == Constants.FERNET.decrypt(resp[0][0].encode()).decode():
-                self.cursor.execute('SELECT name FROM Users WHERE email = %s', (email,))
-                resp = list(self.cursor)
-                return resp[0][0]
-            else:
-                return False
 
-    def register(self, name, email, password):
-        try:
-            password = Constants.FERNET.encrypt(password.encode())
-        except fernet.InvalidToken:
-            return Constants.Errors.WRONG_FERNET_TOKEN
-        if not self.is_username_taken(name) and not self.is_email_taken(email):
-            self.execute('INSERT INTO Users (name, email, password, coins) VALUES (%s, %s, %s, 0)',
-                         (name, email, password))
-            self.execute('INSERT INTO Stats (name) VALUES (%s)', (name,))
+        hasher = hashlib.md5()
+        hasher.update(password.encode())
+        password = hasher.hexdigest()
+        hashed_password = response[0][0]
+
+        if password == hashed_password:
+            cursor.execute('SELECT username FROM users WHERE email = %s', (email,))
+            response = list(cursor)
+            return response[0][0]
+        else:
+            return False
+
+    def register(self, username, email, password):
+        hasher = hashlib.md5()
+        hasher.update(password.encode())
+        password = hasher.hexdigest()
+        if self.check_username_and_email_availability(username, email):
+            db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+            cursor = db.cursor()
+            cursor.execute('INSERT INTO users (username, password, email, coins) VALUES (%s, %s, %s, 0)',
+                           (username, password, email))
+            cursor.execute('INSERT INTO stats (username) VALUES (%s)', (username,))
+            db.commit()
             return True
         return Constants.Errors.USERNAME_TAKEN
 
-    def is_username_taken(self, name):
-        self.update_db()
-        self.cursor.execute('SELECT * FROM Users WHERE name = %s', (name,))
-        return bool(len(list(self.cursor)))
+    def check_username_and_email_availability(self, username, email):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('SELECT * FROM users WHERE username = %s', (username,))
+        if len(list(cursor)) > 0:
+            return False
+        cursor.execute('SELECT * FROM users WHERE email = %s', (email,))
+        if len(list(cursor)) > 0:
+            return False
+        return True
 
-    def is_email_taken(self, email):
-        self.update_db()
-        self.cursor.execute('SELECT * FROM Users WHERE email = %s', (email,))
-        return bool(len(list(self.cursor)))
-
-    def execute(self, *args):
-        try:
-            self.cursor.execute(*args)
-            self.database.commit()
-        except Exception:
-            global database, connecting_to_db
-            connecting_to_db = True
-            while connecting_to_db:
-                try:
-                    self.database = mysql.connector.connect(database=Constants.Database.DATABASE,
-                                                            user=Constants.Database.USER,
-                                                            passwd=Constants.Database.PASSWORD,
-                                                            host=Constants.Database.HOST)
-                except mysql.connector.errors.DatabaseError as error:
-                    print(error)
-                else:
-                    connecting_to_db = False
-            self.cursor.execute(*args)
-            self.database.commit()
-        self.cursor = self.database.cursor()
-
-    def get_stats(self, name):
-        self.update_db()
-        self.cursor.execute('SELECT * FROM Stats WHERE name = %s', (name,))
+    def get_stats(self, username):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('SELECT * FROM stats WHERE username = %s', (username,))
         d = dict()
-        resp = iter(list(self.cursor)[0][1::])
+        resp = iter(list(cursor)[0][1::])
         d['games_played'] = next(resp)
         d['blocks_dropped'] = next(resp)
         d['best_score'] = next(resp)
@@ -2192,77 +2256,94 @@ class Database:
         d['experience'] = next(resp)
         d['tetrises'] = next(resp)
         d['world_record_time'] = next(resp)
-        self.cursor.execute('SELECT coins FROM Users WHERE name = %s', (name,))
-        d['coins'] = list(self.cursor)[0][0]
-        self.cursor.execute('SELECT purchased FROM Users WHERE name = %s', (name,))
-        d['purchased'] = list(self.cursor)[0][0]
+        cursor.execute('SELECT coins FROM users WHERE username = %s', (username,))
+        d['coins'] = list(cursor)[0][0]
+        cursor.execute('SELECT purchased FROM users WHERE username = %s', (username,))
+        d['purchased'] = list(cursor)[0][0]
         return d
 
-    def set_experience(self, name, experience):
-        self.execute('UPDATE Stats SET experience = %s WHERE name = %s', (experience, name))
+    def set_experience(self, username, experience):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE stats SET experience = %s WHERE username = %s', (experience, username))
+        db.commit()
 
-    def set_best_score(self, name, score):
-        self.execute('UPDATE Stats SET best_score = %s WHERE name = %s', (score, name))
+    def set_best_score(self, username, score):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE stats SET best_score = %s WHERE username = %s', (score, username))
+        db.commit()
 
-    def set_games(self, name, games):
-        self.execute('UPDATE Stats SET games_played = %s WHERE name = %s', (games, name))
+    def set_games(self, username, games):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE stats SET games_played = %s WHERE username = %s', (games, username))
+        db.commit()
 
-    def set_playtime(self, name, playtime):
-        self.execute('UPDATE Stats SET playtime = %s WHERE name = %s', (playtime, name))
+    def set_playtime(self, username, playtime):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE stats SET playtime = %s WHERE username = %s', (playtime, username))
+        db.commit()
 
-    def set_rang(self, name, rang):
-        self.execute('UPDATE Stats SET rang = %s WHERE name = %s', (rang, name))
+    def set_rang(self, username, rang):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE stats SET rang = %s WHERE username = %s', (rang, username))
+        db.commit()
 
-    def set_wins(self, name, wins):
-        self.execute('UPDATE Stats SET wins = %s WHERE name = %s', (wins, name))
+    def set_wins(self, username, wins):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE stats SET wins = %s WHERE username = %s', (wins, username))
+        db.commit()
 
-    def set_loses(self, name, loses):
-        self.execute('UPDATE Stats SET loses = %s WHERE name = %s', (loses, name))
+    def set_loses(self, username, loses):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE stats SET loses = %s WHERE username = %s', (loses, username))
+        db.commit()
 
-    def set_blocks_dropped(self, name, blocks):
-        self.execute('UPDATE Stats SET blocks_dropped = %s WHERE name = %s', (blocks, name))
+    def set_blocks_dropped(self, username, blocks):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE stats SET blocks_dropped = %s WHERE username = %s', (blocks, username))
+        db.commit()
 
-    def set_tetrises(self, name, tetrises):
-        self.execute('UPDATE Stats SET tetrises = %s WHERE name = %s', (tetrises, name))
+    def set_tetrises(self, username, tetrises):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE stats SET tetrises = %s WHERE username = %s', (tetrises, username))
+        db.commit()
 
-    def set_world_record_time(self, name, time):
-        self.execute('UPDATE Stats SET world_record_time = %s WHERE name = %s', (time, name))
+    def set_world_record_time(self, username, time):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE stats SET world_record_time = %s WHERE username = %s', (time, username))
+        db.commit()
 
-    def set_coins(self, name, coins):
-        self.execute('UPDATE Users SET coins = %s WHERE name = %s', (coins, name))
+    def set_coins(self, username, coins):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE users SET coins = %s WHERE username = %s', (coins, username))
+        db.commit()
 
     def add_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles, triples,
-                 tetrises, gametype, players, result):
-        self.execute('INSERT INTO Games (score, lines_cleared, time_played, blocks_placed, max_combo, tspins, '
-                     'singles, doubles, triples, tetrises, gametype, players, '
-                     'result) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                     (score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
-                      triples, tetrises, gametype, players, result))
+                 tetrises, gametype, player_one, player_two, result):
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('INSERT INTO games (score, lines_cleared, time_played, blocks_placed, max_combo, tspins, '
+                       'singles, doubles, triples, tetrises, gametype, player_one, player_two, result) '
+                       'VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                       (score, lines_cleared, time_played, blocks_placed, max_combo,
+                        tspins, singles, doubles, triples, tetrises, gametype, player_one, player_two, result))
+        db.commit()
 
     def set_purchased(self, name, value):
-        self.execute('UPDATE Users SET purchased = %s WHERE name = %s', (value, name))
-
-    def update_db(self):
-        if pygame.time.get_ticks() - self.last_time_checked_db > 10000:
-            try:
-                self.cursor.execute('SELECT name FROM Users WHERE name = \'michael\'')
-                for i in self.cursor:
-                    print('проверка дб')
-                self.last_time_checked_db = pygame.time.get_ticks()
-            except Exception:
-                print('!!!')
-                connecting_to_db = True
-                while connecting_to_db:
-                    try:
-                        self.database = mysql.connector.connect(db=Constants.Database.DATABASE,
-                                                                user=Constants.Database.USER,
-                                                                password=Constants.Database.PASSWORD,
-                                                                host=Constants.Database.HOST)
-                    except mysql.connector.errors.DatabaseError as error:
-                        print(error)
-                    else:
-                        connecting_to_db = False
-                self.cursor = self.database.cursor()
+        db = mysql.connector.connect(host=self.host, user=self.user, passwd=self.password, database=self.db)
+        cursor = db.cursor()
+        cursor.execute('UPDATE users SET purchased = %s WHERE username = %s', (value, name))
+        db.commit()
 
 
 class User:
@@ -2301,7 +2382,7 @@ class User:
     def add_world_record_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles,
                               doubles, triples, tetrises):
         self.db.add_game(score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
-                         triples, tetrises, Constants.WORLD_RECORD, self.name, Constants.NEUTRAL)
+                         triples, tetrises, Constants.WORLD_RECORD, self.name, None, Constants.NEUTRAL)
         self.add_experience(game.score // 10)
         self.add_coins(game.score // 10000)
         self.update()
@@ -2309,7 +2390,7 @@ class User:
     def add_marathon_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
                           triples, tetrises):
         self.db.add_game(score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
-                         triples, tetrises, Constants.MARATHON, self.name, Constants.NEUTRAL)
+                         triples, tetrises, Constants.MARATHON, self.name, None, Constants.NEUTRAL)
         self.add_experience(game.score // 10)
         self.add_coins(game.score // 10000)
         self.update()
@@ -2317,7 +2398,7 @@ class User:
     def add_training_game(self, score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles,
                           triples, tetrises):
         self.db.add_game(score, lines_cleared, time_played, blocks_placed, max_combo, tspins, singles, doubles, triples,
-                         tetrises, Constants.TRAINING, self.name, Constants.NEUTRAL)
+                         tetrises, Constants.TRAINING, self.name, None, Constants.NEUTRAL)
         self.add_experience(game.score // 10)
         self.add_coins(game.score // 10000)
         self.update()
