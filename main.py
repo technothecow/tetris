@@ -1103,7 +1103,7 @@ class Game:
         self.paused = not self.paused
         self.pause = None
         self.BLOCK_ANCHOR.toggle_pause()
-        pygame.mixer.music.set_volume(Settings.MUSIC_VOLUME)
+        pygame.mixer.music.set_volume(settings.MUSIC_VOLUME)
 
     def render_and_update(self):
         self.board.draw_board()
@@ -1776,7 +1776,7 @@ class EndGameScreen:
         surface.set_alpha(time // (self.FADEOUT_TIME // 255))
         try:
             pygame.mixer.music.set_volume(
-                Settings.MUSIC_VOLUME - time * (self.FADEOUT_TIME / Settings.MUSIC_VOLUME))
+                settings.MUSIC_VOLUME - time * (self.FADEOUT_TIME / settings.MUSIC_VOLUME))
         except ZeroDivisionError:
             pass
         screen.blit(surface, (0, 0))
@@ -1784,7 +1784,7 @@ class EndGameScreen:
             global program_state
             program_state = Constants.MAIN_MENU
             pygame.mixer.music.load(Constants.MUSIC_MAIN_MENU)
-            pygame.mixer.music.set_volume(Settings.MUSIC_VOLUME)
+            pygame.mixer.music.set_volume(settings.MUSIC_VOLUME)
             pygame.mixer.music.play(-1)
             menu.update()
 
@@ -1798,6 +1798,7 @@ class Settings:
             settings = reader.readlines()
         settings = iter(settings)
     except FileNotFoundError:
+        print('[SETTINGS] Settings file is not found! Creating one...')
         with open('settings', 'w', encoding='utf8') as writer:
             settings = '1\n1\n1073741904\n1073741903\n1073741905\n1073741906\n113\n32\n13'
             writer.write(settings)
@@ -1889,26 +1890,26 @@ class Settings:
 
         self.move_left_button = ControlsKey(self.BUTTONS_TO_STRING[self.MOVE_LEFT_BUTTON],
                                             Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 20 * 10,
-                                            Constants.WINDOW_SIZE[1] // 20 - 10)
+                                            Constants.WINDOW_SIZE[1] // 20 - 10, self.MOVE_LEFT_BUTTON)
         self.move_right_button = ControlsKey(self.BUTTONS_TO_STRING[self.MOVE_RIGHT_BUTTON],
                                              Constants.WINDOW_SIZE[0] // 10 * 6, Constants.WINDOW_SIZE[1] // 20 * 10,
-                                             Constants.WINDOW_SIZE[1] // 20 - 10)
+                                             Constants.WINDOW_SIZE[1] // 20 - 10, self.MOVE_RIGHT_BUTTON)
         self.rotate_left_button = ControlsKey(self.BUTTONS_TO_STRING[self.ROTATE_LEFT_BUTTON],
                                               Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 20 * 11,
-                                              Constants.WINDOW_SIZE[1] // 20 - 10)
+                                              Constants.WINDOW_SIZE[1] // 20 - 10, self.ROTATE_LEFT_BUTTON)
         self.rotate_right_button = ControlsKey(self.BUTTONS_TO_STRING[self.ROTATE_RIGHT_BUTTON],
                                                Constants.WINDOW_SIZE[0] // 10 * 6, Constants.WINDOW_SIZE[1] // 20 * 11,
-                                               Constants.WINDOW_SIZE[1] // 20 - 10)
+                                               Constants.WINDOW_SIZE[1] // 20 - 10, self.ROTATE_RIGHT_BUTTON)
         self.hard_drop_button = ControlsKey(self.BUTTONS_TO_STRING[self.HARD_DROP_BUTTON],
                                             Constants.WINDOW_SIZE[0] // 10 * 4, Constants.WINDOW_SIZE[1] // 20 * 12,
-                                            Constants.WINDOW_SIZE[1] // 20 - 10)
+                                            Constants.WINDOW_SIZE[1] // 20 - 10, self.HARD_DROP_BUTTON)
         self.soft_drop_button = ControlsKey(self.BUTTONS_TO_STRING[self.SOFT_DROP_BUTTON],
                                             Constants.WINDOW_SIZE[0] // 10 * 6, Constants.WINDOW_SIZE[1] // 20 * 12,
-                                            Constants.WINDOW_SIZE[1] // 20 - 10)
+                                            Constants.WINDOW_SIZE[1] // 20 - 10, self.SOFT_DROP_BUTTON)
         self.hold_tetromino_button = ControlsKey(self.BUTTONS_TO_STRING[self.HOLD_BLOCK_BUTTON],
                                                  Constants.WINDOW_SIZE[0] // 20 * 11,
                                                  Constants.WINDOW_SIZE[1] // 20 * 13,
-                                                 Constants.WINDOW_SIZE[1] // 20 - 10)
+                                                 Constants.WINDOW_SIZE[1] // 20 - 10, self.HOLD_BLOCK_BUTTON)
 
         self.buttons = [self.move_left_button, self.move_right_button, self.rotate_left_button,
                         self.rotate_right_button, self.hard_drop_button, self.soft_drop_button,
@@ -1918,6 +1919,14 @@ class Settings:
         self.button_selection = False
 
     def save_settings(self):
+        print('[SETTINGS] Saving settings file...')
+        self.MOVE_LEFT_BUTTON = self.move_left_button.value
+        self.MOVE_RIGHT_BUTTON = self.move_right_button.value
+        self.SOFT_DROP_BUTTON = self.soft_drop_button.value
+        self.ROTATE_LEFT_BUTTON = self.rotate_left_button.value
+        self.ROTATE_RIGHT_BUTTON = self.rotate_right_button.value
+        self.HARD_DROP_BUTTON = self.hard_drop_button.value
+        self.HOLD_BLOCK_BUTTON = self.hold_tetromino_button.value
         with open('settings', 'w', encoding='utf8') as wr:
             s = f'{self.AUDIO_VOLUME}\n{self.MUSIC_VOLUME}\n{self.MOVE_LEFT_BUTTON}\n{self.MOVE_RIGHT_BUTTON}\n' \
                 f'{self.SOFT_DROP_BUTTON}\n{self.ROTATE_LEFT_BUTTON}\n{self.ROTATE_RIGHT_BUTTON}\n' \
@@ -2001,8 +2010,9 @@ class AdjustmentLine:
 class ControlsKey:
     surface_empty_key = pygame.image.load('res/keyboard/empty_key.png').convert_alpha()
 
-    def __init__(self, default_key, x, y, height):
+    def __init__(self, default_key, x, y, height, value):
         self.key_title = default_key
+        self.value = value
         self.surface_key = None
         self.x, self.y, self.height = x, y, height
         self.rect = pygame.rect.Rect((x, y), (height, height))
@@ -2034,6 +2044,7 @@ class ControlsKey:
         if button in settings.BUTTONS_TO_STRING.keys():
             self.get_button = False
             self.key_title = settings.BUTTONS_TO_STRING[button]
+            self.value = button
             self.transform_button()
             return True
         return False
@@ -3167,7 +3178,7 @@ class Pause:
             self.black_surface.set_alpha(alpha + self.alpha_decrease)
             pygame.mixer.music.set_volume(
                 pygame.mixer.music.get_volume() - self.alpha_decrease * (
-                        Settings.MUSIC_VOLUME / (150 / self.alpha_decrease)))
+                        settings.MUSIC_VOLUME / (150 / self.alpha_decrease)))
 
         screen.blit(self.black_surface, (0, 0))
         screen.blit(self.frame_surface, self.frame_rect)
@@ -3186,7 +3197,7 @@ class Pause:
         self.pause_click.play()
         game = None
         program_state = Constants.MAIN_MENU
-        pygame.mixer.music.set_volume(Settings.MUSIC_VOLUME)
+        pygame.mixer.music.set_volume(settings.MUSIC_VOLUME)
         pygame.mixer.music.load(Constants.MUSIC_MAIN_MENU)
         pygame.mixer.music.play(-1)
 
@@ -3699,37 +3710,37 @@ while True:
                 terminate()
             elif event.type == pygame.KEYDOWN:
                 try:
-                    if event.key == Settings.MOVE_LEFT_BUTTON:
+                    if event.key == settings.MOVE_LEFT_BUTTON:
                         game.current_block.move_left = True
-                    elif event.key == Settings.MOVE_RIGHT_BUTTON:
+                    elif event.key == settings.MOVE_RIGHT_BUTTON:
                         game.current_block.move_right = True
-                    elif event.key == Settings.ROTATE_LEFT_BUTTON:
+                    elif event.key == settings.ROTATE_LEFT_BUTTON:
                         game.current_block.block.rotate()
-                    elif event.key == Settings.HARD_DROP_BUTTON:
+                    elif event.key == settings.HARD_DROP_BUTTON:
                         hard_drop_particle = HardDropParticle(*game.current_block.block.hard_drop(True))
-                    elif event.key == Settings.SOFT_DROP_BUTTON:
+                    elif event.key == settings.SOFT_DROP_BUTTON:
                         game.current_block.move_down = True
-                    elif event.key == Settings.HOLD_BLOCK_BUTTON and game.may_hold():
+                    elif event.key == settings.HOLD_BLOCK_BUTTON and game.may_hold():
                         game.block_queue.hold()
                 except AttributeError:
-                    print(4)
+                    print('[GAME] 4 - AttributeError')
             elif event.type == pygame.KEYUP:
                 try:
-                    if event.key == Settings.MOVE_LEFT_BUTTON:
+                    if event.key == settings.MOVE_LEFT_BUTTON:
                         game.current_block.move_left = False
-                    elif event.key == Settings.MOVE_RIGHT_BUTTON:
+                    elif event.key == settings.MOVE_RIGHT_BUTTON:
                         game.current_block.move_right = False
-                    elif event.key == Settings.SOFT_DROP_BUTTON:
+                    elif event.key == settings.SOFT_DROP_BUTTON:
                         game.current_block.move_down = False
-                    elif event.key == Settings.PAUSE_BUTTON:
+                    elif event.key == settings.PAUSE_BUTTON:
                         game.toggle_pause()
                 except AttributeError:
-                    print(2)
+                    print('[GAME] 2 - AttributeError')
             elif event.type == FALL_BLOCK_EVENT and not game.gameover and not game.paused:
                 try:
                     game.current_block.block.fall()
                 except AttributeError:
-                    print(3)
+                    print('[GAME] 3 - AttributeError')
 
         if game.is_countdown():
             game.countdown()
