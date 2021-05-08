@@ -332,9 +332,9 @@ class Block:
         return result.copy()
 
     def move_tiles(self, direction: int):
-        if self.moves_left is not None:
+        if self.moves_left is not None and self.moves_left > 0:
             self.moves_left -= 1
-            game.BLOCK_ANCHOR.start(pygame.time.get_ticks() + 500)
+            game.BLOCK_ANCHOR.start(500)
         moved_tiles = self.move_tiles_horizontally(self.get_tiles_copy(self.tiles), direction)
         if game.board.check_collision(moved_tiles):
             self.tiles = moved_tiles.copy()
@@ -348,9 +348,9 @@ class Block:
 
     def rotate(self, matrix, value):
         # checking if there are enough moves left
-        if self.moves_left is not None:
+        if self.moves_left is not None and self.moves_left > 0:
             self.moves_left -= 1
-            game.BLOCK_ANCHOR.start(pygame.time.get_ticks() + 500)
+            game.BLOCK_ANCHOR.start(500)
         # removing t-spin if it was before
         if self.type == Constants.T:
             self.events.discard(Constants.Events.TSPIN)
@@ -427,7 +427,7 @@ class Block:
             self.tiles = self.move_tiles_vertically(self.tiles, -1)
         elif not self.touched_the_ground:
             self.touched_the_ground = True
-            game.BLOCK_ANCHOR.start(pygame.time.get_ticks() + 500)
+            game.BLOCK_ANCHOR.start(500)
             self.moves_left = 15
             print('[BLOCK] Touch detected')
 
@@ -3304,7 +3304,7 @@ while True:
         elif game is not None:
             if not game.gameover:
                 if game.current_block.block and game.current_block.block.touched_the_ground and \
-                        (game.BLOCK_ANCHOR.is_time() or game.current_block.block.moves_left <= 0):
+                        game.BLOCK_ANCHOR.is_time():
                     game.current_block.block.hard_drop(False)
                 game.render_and_update()
             else:
