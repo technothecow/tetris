@@ -41,7 +41,7 @@ class Constants:
     CURRENT_LEVEL_TOPLEFT = (SCORE_FRAME_TOPLEFT[0] + 283, SCORE_FRAME_TOPLEFT[1] + 72)
     TOTAL_LINES_TOPLEFT = (SCORE_FRAME_TOPLEFT[0] + 283, SCORE_FRAME_TOPLEFT[1] + 112)
     LINES_TILL_NEXT_LEVEL_TOPLEFT = (SCORE_FRAME_TOPLEFT[0] + 283, SCORE_FRAME_TOPLEFT[1] + 152)
-    BLOCK_FALL_TIMER = 3000
+    BLOCK_LOCK_TIME = 1000
     BLOCK_QUEUE_TOPLEFT = (FRAME_TOPLEFT[0] + 436, FRAME_TOPLEFT[1] + 34)
     HOLDED_BLOCK_TOPLEFT = (FRAME_TOPLEFT[0] + 19, FRAME_TOPLEFT[1] + 54)
     FPS = 30
@@ -75,6 +75,7 @@ class Board:
     audio_double = pygame.mixer.Sound('audio/double.wav')
     audio_triple = pygame.mixer.Sound('audio/triple.wav')
     audio_tetris = pygame.mixer.Sound('audio/tetris.wav')
+    audio_all_clear = pygame.mixer.Sound('audio/all_clear.wav')
 
     surface_frame = pygame.image.load('res/frame.png').convert_alpha()
 
@@ -118,6 +119,12 @@ class Board:
         self.sprite_single_garbage = pygame.sprite.Sprite()
         self.sprite_single_garbage.image = pygame.surface.Surface((Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
         self.sprite_single_garbage.image.fill((128, 128, 128))
+
+        self.audio_single.set_volume(settings.AUDIO_VOLUME)
+        self.audio_double.set_volume(settings.AUDIO_VOLUME)
+        self.audio_triple.set_volume(settings.AUDIO_VOLUME)
+        self.audio_tetris.set_volume(settings.AUDIO_VOLUME)
+        self.audio_all_clear.set_volume(settings.AUDIO_VOLUME)
 
         self.board = list()
         self.init_board()
@@ -196,19 +203,15 @@ class Board:
         if len(total_lines) == 0:
             return False
         elif len(total_lines) == 1:
-            self.audio_single.set_volume(settings.AUDIO_VOLUME)
             self.audio_single.play()
             game.singles += 1
         elif len(total_lines) == 2:
-            self.audio_double.set_volume(settings.AUDIO_VOLUME)
             self.audio_double.play()
             game.doubles += 1
         elif len(total_lines) == 3:
-            self.audio_triple.set_volume(settings.AUDIO_VOLUME)
             self.audio_triple.play()
             game.triples += 1
         elif len(total_lines) == 4:
-            self.audio_tetris.set_volume(settings.AUDIO_VOLUME)
             self.audio_tetris.play()
             game.tetrises += 1
 
@@ -221,26 +224,33 @@ class Board:
 
         # counting score
 
+        # all clear checking
+        if len({len(set(i)) for i in self.board.copy()}) == 1:
+            print('[BOARD] ALL CLEAR')
+            self.audio_all_clear.play()
+            game.add_score(2000 * game.current_level)
+
         # for combo
         game.is_combo = True
         game.combo += 1
         print('[GAME] Combo counter:', game.combo)
         game.add_score((game.combo - 1) * game.current_level + 50 * game.current_level)
+        print('[GAME] B-T-B counter:', game.back_to_back_counter)
 
         # for t-spins
         if game.current_block.block.type == Constants.T and Constants.Events.TSPIN in game.current_block.block.events:
             if len(lines) == 1:
-                print('TSPIN SINGLE')
+                print('[BOARD] TSPIN SINGLE')
                 game.add_score(800 * game.current_level)
                 if game.back_to_back_counter > 0:
                     game.add_score(400 * game.current_level)
             elif len(lines) == 2:
-                print('TSPIN DOUBLE')
+                print('[BOARD] TSPIN DOUBLE')
                 game.add_score(1200 * game.current_level)
                 if game.back_to_back_counter > 0:
                     game.add_score(600 * game.current_level)
             elif len(lines) == 3:
-                print('TSPIN TRIPLE')
+                print('[BOARD] TSPIN TRIPLE')
                 game.add_score(1600 * game.current_level)
                 if game.back_to_back_counter > 0:
                     game.add_score(800 * game.current_level)
@@ -291,6 +301,7 @@ class Block:
     audio_wall_kick = pygame.mixer.Sound('audio/wall_kick.wav')
     audio_lock = pygame.mixer.Sound('audio/lock.wav')
     audio_tspin = pygame.mixer.Sound('audio/tspin.wav')
+    audio_landing = pygame.mixer.Sound('audio/landing.wav')
 
     def __init__(self):
         self.audio_move.set_volume(settings.AUDIO_VOLUME)
@@ -299,6 +310,8 @@ class Block:
         self.audio_soft_drop.set_volume(settings.AUDIO_VOLUME)
         self.audio_wall_kick.set_volume(settings.AUDIO_VOLUME)
         self.audio_lock.set_volume(settings.AUDIO_VOLUME)
+        self.audio_tspin.set_volume(settings.AUDIO_VOLUME)
+        self.audio_landing.set_volume(settings.AUDIO_VOLUME)
 
         self.rotation_index = 0
 
@@ -359,13 +372,13 @@ class Block:
         return result.copy()
 
     def move_tiles(self, direction: int):
-        if self.moves_left is not None and self.moves_left > 0:
-            self.moves_left -= 1
-            game.BLOCK_ANCHOR.start(500)
         moved_tiles = self.move_tiles_horizontally(self.get_tiles_copy(self.tiles), direction)
         if game.board.check_collision(moved_tiles):
             self.tiles = moved_tiles.copy()
             self.audio_move.play()
+            if self.moves_left is not None and self.moves_left > 0:
+                self.moves_left -= 1
+                game.BLOCK_ANCHOR.start(Constants.BLOCK_LOCK_TIME)
 
     def move_right(self):
         self.move_tiles(1)
@@ -377,7 +390,7 @@ class Block:
         # checking if there are enough moves left
         if self.moves_left is not None and self.moves_left > 0:
             self.moves_left -= 1
-            game.BLOCK_ANCHOR.start(500)
+            game.BLOCK_ANCHOR.start(Constants.BLOCK_LOCK_TIME)
         # removing t-spin if it was before
         if self.type == Constants.T:
             self.events.discard(Constants.Events.TSPIN)
@@ -453,8 +466,9 @@ class Block:
         if game.board.check_collision(self.move_tiles_vertically(self.get_tiles_copy(self.tiles), -1)):
             self.tiles = self.move_tiles_vertically(self.tiles, -1)
         elif not self.touched_the_ground:
+            self.audio_landing.play()
             self.touched_the_ground = True
-            game.BLOCK_ANCHOR.start(500)
+            game.BLOCK_ANCHOR.start(Constants.BLOCK_LOCK_TIME)
             self.moves_left = 15
 
     def hard_drop(self, is_lock: bool = True):
