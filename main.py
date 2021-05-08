@@ -19,6 +19,9 @@ class Constants:
     class Errors:
         WRONG_FERNET_TOKEN, USERNAME_TAKEN = 0, 1
 
+    class Events:
+        TSPIN = 0
+
     I, J, L, O, S, T, Z, GARBAGE = 1, 2, 3, 4, 5, 6, 7, 8
     MAIN_MENU, SETTINGS, START_SCREEN, SHOP, PAUSE, INGAME, LEVEL_SELECT, PROFILE = 1, 2, 3, 4, 5, 6, 7, 8
     ENDSCREEN, AUTHORISATION, GAME_MODE_SELECTION = 9, 10, 11
@@ -118,10 +121,9 @@ class Board:
 
         self.board = list()
         self.init_board()
-        self.topleft_x, self.topleft_y = topleft
         self.side_length = side_length
-        self.last_time_destroyed = 0
-        self.combo_counter = 0
+        self.topleft_x, self.topleft_y = topleft
+        self.bottomleft_y = self.topleft_y + side_length * (Constants.BOARD_SIZE[1] - 1)
 
     def init_board(self):
         for i in range(Constants.BOARD_SIZE[1]):
@@ -136,11 +138,12 @@ class Board:
             for j in range(len(self.board[i])):
                 if self.board[i][j] == 0:
                     pygame.draw.rect(screen, (119, 136, 153),
-                                     (self.topleft_x + self.side_length * j, self.topleft_y + self.side_length * i,
+                                     (self.topleft_x + self.side_length * j,
+                                      self.bottomleft_y - self.side_length * i,
                                       self.side_length, self.side_length), 1)
                 else:
                     screen.blit(self.get_block(self.board[i][j]),
-                                (self.topleft_x + self.side_length * j, self.topleft_y + self.side_length * i))
+                                (self.topleft_x + self.side_length * j, self.bottomleft_y - self.side_length * i))
 
     def get_block(self, i):
         if i == Constants.I:
@@ -160,36 +163,20 @@ class Board:
         elif i == Constants.GARBAGE:
             return self.sprite_single_garbage.image
 
-    def get_line(self, position, length, height):
+    def check_collision(self, tiles):
         try:
-            return self.board[position[1] + height][position[0]:position[0] + length]
-        except IndexError:
-            return [1 for _ in range(length)]
-
-    def check_under(self, position, under):
-        for i in range(len(under)):
-            if self.board[position[1] + under[i]][position[0] + i] != 0:
-                return False
-        return True
-
-    def anchor_block(self, position, block_pattern):
-        game.blocks += 1
-        for i in range(len(block_pattern)):
-            for j in range(len(block_pattern[i])):
-                if block_pattern[i][j] != -1:
-                    self.board[position[1] + i][position[0] + j] = block_pattern[i][j]
-        self.check_lines()
-
-    def check_collide(self, position, pattern):
-        for i in range(len(pattern)):
-            for j in range(len(pattern[i])):
-                try:
-                    if pattern[i][j] != -1:
-                        if self.board[position[1] + i][position[0] + j] != 0:
-                            return False
-                except IndexError:
+            for tile in tiles:
+                if self.board[tile[1]][tile[0]] != 0 or tile[0] < 0 or tile[1] < 0:
                     return False
-        return True
+            return True
+        except IndexError:
+            return False
+
+    def anchor_block(self, tiles, piece_type):
+        game.blocks += 1
+        for tile in tiles:
+            self.board[tile[1]][tile[0]] = piece_type
+        self.check_lines()
 
     def check_lines(self):
         lines = list()
@@ -200,24 +187,33 @@ class Board:
                     trash_lines.append(i)
                 else:
                     lines.append(i)
+
+        if game.current_block.block.type == Constants.T:
+            if Constants.Events.TSPIN in game.current_block.block.events:
+                if len(lines) > 0:
+                    game.tspins += 1
+                    game.current_block.block.audio_tspin.play()
+                    if len(lines) == 1:
+                        print('T-SPIN SINGLE')
+                    elif len(lines) == 2:
+                        print('T-SPIN DOUBLE')
+                    elif len(lines) == 3:
+                        print('T-SPIN TRIPLE')
+
         self.destroy_lines(lines)
         self.destroy_trash_lines(trash_lines)
 
     def destroy_trash_lines(self, trash_lines):
         for line in trash_lines:
-            i = line
-            while i > 0:
-                self.board[i] = self.board[i - 1].copy()
-                i -= 1
-            game.add_garbage_line()
+            for i in range(line, Constants.BOARD_SIZE[1]):
+                self.board[i] = self.board[i + 1].copy()
+                game.add_garbage_line()
 
     def add_garbage_line(self, empty_slot):
         garbage_line = [0 if i == empty_slot else Constants.GARBAGE for i in range(Constants.BOARD_SIZE[0])].copy()
-        i = 0
-        while i < Constants.BOARD_SIZE[1] - 1:
-            self.board[i] = self.board[i + 1]
-            i += 1
-        self.board[-1] = garbage_line.copy()
+        for i in range(Constants.BOARD_SIZE[1] - 1, 0, -1):
+            self.board[i] = self.board[i - 1].copy()
+        self.board[0] = garbage_line.copy()
 
     def destroy_lines(self, lines):
         if len(lines) == 0:
@@ -239,21 +235,10 @@ class Board:
             self.audio_tetris.play()
             game.tetrises += 1
 
+        lines.reverse()
         for line in lines:
-            i = line
-            while i > 0:
-                self.board[i] = self.board[i - 1].copy()
-                i -= 1
-
-        if pygame.time.get_ticks() - self.last_time_destroyed < 5000:
-            self.combo_counter += 1
-            if self.combo_counter > game.max_combo:
-                game.max_combo = self.combo_counter
-        else:
-            self.combo_counter = 0
-
-        if game.combo > 0:
-            game.add_score(self.combo_counter * game.current_level + 50 * game.current_level)
+            for i in range(line, Constants.BOARD_SIZE[1] - 1):
+                self.board[i] = self.board[i + 1].copy()
 
         if len(lines) == 1:
             game.add_score(40 * (game.current_level + 1))
@@ -267,20 +252,8 @@ class Board:
         game.add_cleared_lines(len(lines))
 
     def check_lose(self):
-        if len(set(self.board[0])) != 1:
+        if len(set(self.board[-1])) != 1:
             game.gameover = True
-
-    def check_right(self, position, pattern):
-        for i in range(len(pattern)):
-            if self.board[position[1] + i][position[0] + pattern[i]] != 0:
-                return False
-        return True
-
-    def check_left(self, position, pattern):
-        for i in range(len(pattern)):
-            if self.board[position[1] + i][position[0] - pattern[i] - 1] != 0:
-                return False
-        return True
 
 
 class Block:
@@ -288,734 +261,329 @@ class Block:
     audio_rotate = pygame.mixer.Sound('audio/rotate.wav')
     audio_hard_drop = pygame.mixer.Sound('audio/hard_drop.wav')
     audio_soft_drop = pygame.mixer.Sound('audio/soft_drop.wav')
-    audio_rotate_2 = pygame.mixer.Sound('audio/rotate_2.wav')
-    audio_fall = pygame.mixer.Sound('audio/fall.wav')
+    audio_wall_kick = pygame.mixer.Sound('audio/wall_kick.wav')
+    audio_lock = pygame.mixer.Sound('audio/lock.wav')
+    audio_tspin = pygame.mixer.Sound('audio/tspin.wav')
 
     def __init__(self):
-        self.sprite_I = pygame.sprite.Sprite()
-        self.surface_I = pack.I
-        self.sprite_I.image = pygame.transform.scale(self.surface_I, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH * 4))
-
-        self.sprite_J = pygame.sprite.Sprite()
-        self.surface_J = pack.J
-        self.sprite_J.image = pygame.transform.scale(self.surface_J,
-                                                     (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
-
-        self.sprite_L = pygame.sprite.Sprite()
-        self.surface_L = pack.L
-        self.sprite_L.image = pygame.transform.scale(self.surface_L,
-                                                     (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
-
-        self.sprite_O = pygame.sprite.Sprite()
-        self.surface_O = pack.O
-        self.sprite_O.image = pygame.transform.scale(self.surface_O,
-                                                     (Constants.SIDE_LENGTH * 2, Constants.SIDE_LENGTH * 2))
-
-        self.sprite_S = pygame.sprite.Sprite()
-        self.surface_S = pack.S
-        self.sprite_S.image = pygame.transform.scale(self.surface_S,
-                                                     (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
-
-        self.sprite_T = pygame.sprite.Sprite()
-        self.surface_T = pack.T
-        self.sprite_T.image = pygame.transform.scale(self.surface_T,
-                                                     (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
-
-        self.sprite_Z = pygame.sprite.Sprite()
-        self.surface_Z = pack.Z
-        self.sprite_Z.image = pygame.transform.scale(self.surface_Z,
-                                                     (Constants.SIDE_LENGTH * 3, Constants.SIDE_LENGTH * 2))
-
         self.audio_move.set_volume(settings.AUDIO_VOLUME)
         self.audio_rotate.set_volume(settings.AUDIO_VOLUME)
         self.audio_hard_drop.set_volume(settings.AUDIO_VOLUME)
         self.audio_soft_drop.set_volume(settings.AUDIO_VOLUME)
-        self.audio_rotate_2.set_volume(settings.AUDIO_VOLUME)
-        self.audio_fall.set_volume(settings.AUDIO_VOLUME)
+        self.audio_wall_kick.set_volume(settings.AUDIO_VOLUME)
+        self.audio_lock.set_volume(settings.AUDIO_VOLUME)
 
-        self.status = 0
-        self.position = [4, 0]
-        self.timer_set = False
+        self.rotation_index = 0
+
+        self.offset_data = (
+            ((0, 0), (0, 0), (0, 0), (0, 0), (0, 0)),
+            ((0, 0), (1, 0), (1, -1), (0, 2), (+1, 2)),
+            ((0, 0), (0, 0), (0, 0), (0, 0), (0, 0)),
+            ((0, 0), (-1, 0), (-1, -1), (0, 2), (-1, 2)),
+        )
+
+        self.tiles, self.type, self.center_index, self.sprite = None, None, None, None
+
+        self.events = set()
+
+        self.touched_the_ground = False
+        self.lock_timer = Timer()
+        self.moves_left = None
 
     def draw(self):
-        screen.blit(self.get_sprite(), (Constants.BOARD_TOPLEFT[0] + Constants.SIDE_LENGTH * self.position[0],
-                                        Constants.BOARD_TOPLEFT[1] + Constants.SIDE_LENGTH * self.position[1]))
+        self.draw_tiles(self.tiles, self.sprite)
 
-        temp = self.get_sprite().copy()
-        temp.set_alpha(50)
-        temp_position = self.position.copy()
-        while temp_position[1] + self.get_height() < Constants.BOARD_SIZE[1] and \
-                game.board.check_under(temp_position, self.get_under()):
-            temp_position[1] += 1
-        screen.blit(temp, (Constants.BOARD_TOPLEFT[0] + Constants.SIDE_LENGTH * temp_position[0],
-                           Constants.BOARD_TOPLEFT[1] + Constants.SIDE_LENGTH * temp_position[1]))
+        ghost_sprite = self.sprite.copy()
+        ghost_sprite.set_alpha(50)
 
-    def get_under(self):
-        return [0]
+        ghost_tiles = self.get_tiles_copy(self.tiles)
+        while True:
+            if game.board.check_collision(ghost_tiles):
+                ghost_tiles = self.move_tiles_vertically(ghost_tiles, -1)
+            else:
+                ghost_tiles = self.move_tiles_vertically(ghost_tiles, 1)
+                break
 
-    def get_sprite(self):
-        return self.sprite_I.image
+        self.draw_tiles(ghost_tiles, ghost_sprite)
 
-    def move_right(self):
-        if self.position[0] < Constants.BOARD_SIZE[0]:
-            self.position[0] += 1
-        self.audio_move.set_volume(settings.AUDIO_VOLUME)
-        self.audio_move.play()
+    @staticmethod
+    def get_tiles_copy(tiles):
+        return [i.copy() for i in tiles.copy()].copy()
 
-    def rotate(self):
-        pass
+    @staticmethod
+    def draw_tiles(tiles, sprite):
+        for tile in tiles:
+            screen.blit(sprite, (
+                Constants.BOARD_TOPLEFT[0] + Constants.SIDE_LENGTH * tile[0],
+                Constants.BOARD_TOPLEFT[1] + Constants.SIDE_LENGTH * (Constants.BOARD_SIZE[1] - tile[1] - 1)))
 
-    def fall(self):
-        if self.check_bottom():
-            self.position[1] += 1
-        else:
-            if not self.timer_set:
-                self.timer_set = True
-                game.BLOCK_ANCHOR.start(Constants.BLOCK_FALL_TIMER)
+    @staticmethod
+    def move_tiles_vertically(tiles, value) -> list:
+        result = tiles.copy()
+        for tile in tiles:
+            tile[1] += value
+        return result.copy()
 
-    def hard_drop(self, sound):
-        while self.check_bottom():
-            self.position[1] += 1
-            game.score += 2
-        if sound:
-            self.audio_hard_drop.set_volume(settings.AUDIO_VOLUME)
-            self.audio_hard_drop.play()
-        else:
-            self.audio_fall.set_volume(settings.AUDIO_VOLUME)
-            self.audio_fall.play()
-        self.anchor()
-        return self.position, self.get_length(), self.get_height()
+    @staticmethod
+    def move_tiles_horizontally(tiles, value) -> list:
+        result = tiles.copy()
+        for tile in tiles:
+            tile[0] += value
+        return result.copy()
 
-    def anchor(self):
-        game.board.anchor_block(self.position, self.get_pattern())
-        game.next_block()
-
-    def check_bottom(self):
-        pass
-
-    def get_pattern(self):
-        return list()
-
-    def move_left(self):
-        if self.position[0] > 0 and game.board.check_left(self.position, self.get_left_pattern()):
-            self.position[0] -= 1
-            self.audio_move.set_volume(settings.AUDIO_VOLUME)
+    def move_tiles(self, direction: int):
+        if self.moves_left is not None:
+            self.moves_left -= 1
+            game.BLOCK_ANCHOR.start(pygame.time.get_ticks() + 500)
+        moved_tiles = self.move_tiles_horizontally(self.get_tiles_copy(self.tiles), direction)
+        if game.board.check_collision(moved_tiles):
+            self.tiles = moved_tiles.copy()
             self.audio_move.play()
 
-    def get_left_pattern(self):
-        return list()
+    def move_right(self):
+        self.move_tiles(1)
 
-    def check_rotation(self):
-        if not game.board.check_collide(self.position, self.get_pattern()):
-            self.position[1] += 1
-            if not game.board.check_collide(self.position, self.get_pattern()):
-                while not game.board.check_collide(self.position, self.get_pattern()) and self.position[1] > 0:
-                    self.position[1] -= 1
-            else:
-                game.tspins += 1
-                game.add_score(100 * game.current_level)
-                self.audio_rotate_2.set_volume(settings.AUDIO_VOLUME)
-                self.audio_rotate_2.play()
-                self.audio_rotate_2.set_volume(settings.AUDIO_VOLUME)
-                return
-        self.audio_rotate.set_volume(settings.AUDIO_VOLUME)
-        self.audio_rotate.play()
+    def move_left(self):
+        self.move_tiles(-1)
 
-    def get_length(self):
-        return len(self.get_pattern()[0])
+    def rotate(self, matrix, value):
+        # checking if there are enough moves left
+        if self.moves_left is not None:
+            self.moves_left -= 1
+            game.BLOCK_ANCHOR.start(pygame.time.get_ticks() + 500)
+        # removing t-spin if it was before
+        if self.type == Constants.T:
+            self.events.discard(Constants.Events.TSPIN)
+        # subtraction from all the tiles value of central one
+        tiles = self.centralize_tiles(self.tiles, self.center_index)
+        # rotation of all tiles
+        rotated_tiles = list()
+        for tile in tiles:
+            rotated_tiles.append(self.dot_product(matrix, tile))
+        # returning the origin positions to tiles
+        rotated_tiles = self.uncentralize_tiles(rotated_tiles, self.tiles[self.center_index])
+        # wall-kick checking
+        result = self.check_offsets(rotated_tiles, (self.rotation_index + value) % 4)
+        if result:
+            self.rotation_index = (self.rotation_index + value) % 4
+            self.tiles = result
 
-    def get_height(self):
-        return len(self.get_pattern())
+    @staticmethod
+    def centralize_tiles(tiles, center):
+        result = list()
+        for i in range(len(tiles)):
+            result.append([tiles[i][0] - tiles[center][0], tiles[i][1] - tiles[center][1]].copy())
+        return result
+
+    @staticmethod
+    def uncentralize_tiles(tiles, center_value):
+        return [[i[0] + center_value[0], i[1] + center_value[1]] for i in tiles].copy()
+
+    def check_offsets(self, tiles, new_rotation_index):
+        for i in range(len(self.offset_data[self.rotation_index])):
+            old_offset = self.offset_data[self.rotation_index][i]
+            new_offset = self.offset_data[new_rotation_index][i]
+            offset = (old_offset[0] - new_offset[0], old_offset[1] - new_offset[1])
+            offset_tiles = [[tile[0] + offset[0], tile[1] + offset[1]].copy() for tile in tiles].copy()
+            if game.board.check_collision(offset_tiles):
+                # Complicated T-SPIN check
+                if self.type == Constants.T:
+                    cube_under_left = (offset_tiles[1][0], offset_tiles[1][1] - 1)
+                    cube_under_right = (offset_tiles[2][0], offset_tiles[2][1] - 1)
+                    cube_over_left = (offset_tiles[1][0], offset_tiles[1][1] + 1)
+                    cube_over_right = (offset_tiles[2][0], offset_tiles[2][1] + 1)
+                    if (not game.board.check_collision((cube_under_left,)) and \
+                            not game.board.check_collision((cube_under_right,)) \
+                            and (not game.board.check_collision((cube_over_left,)) or
+                                 not game.board.check_collision((cube_over_right,))) and self.rotation_index in (1, 3))\
+                            or offset in ((-1, -2), (1, -2)) and self.rotation_index == 0:
+                        self.events.add(Constants.Events.TSPIN)
+                self.audio_rotate.play()
+                return offset_tiles
+        return False
+
+    def rotate_left(self):
+        self.rotate([[0, -1], [1, 0]], -1)
+
+    def rotate_right(self):
+        self.rotate([[0, 1], [-1, 0]], 1)
+
+    def rotate_clockwise(self):
+        pass
+
+    @staticmethod
+    def dot_product(l1, l2):
+        result = list()
+        for line in l1:
+            result.append(sum([line[index] * l2[index] for index in range(len(line))]))
+        return result.copy()
+
+    def anchor(self):
+        game.board.anchor_block(self.tiles, self.type)
+        game.next_block()
+
+    def fall(self):
+        if game.board.check_collision(self.move_tiles_vertically(self.get_tiles_copy(self.tiles), -1)):
+            self.tiles = self.move_tiles_vertically(self.tiles, -1)
+        elif not self.touched_the_ground:
+            self.touched_the_ground = True
+            game.BLOCK_ANCHOR.start(pygame.time.get_ticks() + 500)
+            self.moves_left = 15
+            print('[BLOCK] Touch detected')
+
+    def hard_drop(self, is_lock: bool = True):
+        while game.board.check_collision(self.move_tiles_vertically(self.get_tiles_copy(self.tiles), -1)):
+            self.tiles = self.move_tiles_vertically(self.tiles, -1)
+        self.anchor()
+        if is_lock:
+            self.audio_hard_drop.play()
+        else:
+            self.audio_lock.play()
+        return self.get_rect_for_hard_drop_particle()
+
+    def get_rect_for_hard_drop_particle(self):
+        x, y = {tile[0] for tile in self.tiles}, {tile[1] for tile in self.tiles}
+        return pygame.Rect((game.board.topleft_x + game.board.side_length * min(x),
+                            game.board.topleft_y), (game.board.side_length * (max(x) - min(x)),
+                                                    game.board.side_length * (Constants.BOARD_SIZE[1] - min(y))))
 
 
 class BlockI(Block):
     def __init__(self):
         super().__init__()
-        self.position = [3, 0]
-        self.sprite = self.sprite_I
-        self.status = 1
+        self.tiles = [[3, Constants.BOARD_SIZE[1] - 1], [4, Constants.BOARD_SIZE[1] - 1],
+                      [5, Constants.BOARD_SIZE[1] - 1], [6, Constants.BOARD_SIZE[1] - 1]]
+        self.center_index = 1
+        self.sprite = pygame.transform.scale(pack.singleI, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+        self.type = Constants.I
+        self.offset_data = (
+            ((0, 0), (-1, 0), (2, 0), (-1, 0), (2, 0)),
+            ((-1, 0), (0, 0), (0, 0), (0, 1), (0, -2)),
+            ((-1, 1), (1, 1), (-2, 1), (1, 0), (-2, 0)),
+            ((0, 1), (0, 1), (0, 1), (0, -1), (0, 2)),
+        )
 
     def get_self(self):
         if self:
             return BlockI()
 
-    def get_sprite_for_frame(self):
-        return pygame.transform.scale(self.get_sprite(), (18 * 4, 18))
-
-    def rotate(self):
-        if self.status == 0:
-            if self.position[0] > Constants.BOARD_SIZE[0] - 4:
-                self.position[0] = Constants.BOARD_SIZE[0] - 4
-        elif self.status == 1:
-            if self.position[0] == Constants.BOARD_SIZE[0] - 4:
-                self.position[0] = Constants.BOARD_SIZE[0] - 1
-            if self.position[1] > Constants.BOARD_SIZE[1] - 4:
-                self.position[1] = Constants.BOARD_SIZE[1] - 4
-        self.status += 1
-        self.status = self.status % 2
-        self.check_rotation()
-
-    def move_right(self):
-        if self.status == 1 and self.position[0] >= Constants.BOARD_SIZE[0] - 4:
-            return
-        elif self.status == 0 and self.position[0] >= Constants.BOARD_SIZE[0] - 1:
-            return
-        if game.board.check_right(self.position, self.get_right_pattern()):
-            self.position[0] += 1
-        self.audio_move.set_volume(settings.AUDIO_VOLUME)
-        self.audio_move.play()
-
-    def get_right_pattern(self):
-        if self.status == 0:
-            return [1,
-                    1,
-                    1,
-                    1]
-        elif self.status == 1:
-            return [4]
-
-    def get_left_pattern(self):
-        if self.status == 0:
-            return [0, 0, 0, 0]
-        elif self.status == 1:
-            return [0]
-
-    def get_sprite(self):
-        if self.status == 0:
-            return self.sprite.image
-        elif self.status == 1:
-            return pygame.transform.rotate(self.sprite.image, 90)
-
-    def check_bottom(self):
-        if self.position[1] >= Constants.BOARD_SIZE[1] - self.get_height():
-            return False
-        if sum(game.board.get_line(self.position, self.get_length(), self.get_height())) == 0:
-            return True
-        return False
-
-    def get_pattern(self):
-        if self.status == 0:
-            return [[Constants.I],
-                    [Constants.I],
-                    [Constants.I],
-                    [Constants.I]]
-        else:
-            return [[Constants.I, Constants.I, Constants.I, Constants.I]]
-
-    def get_under(self):
-        if self.status == 0:
-            return [4]
-        elif self.status == 1:
-            return [1, 1, 1, 1]
+    @staticmethod
+    def get_sprite_for_frame():
+        return pygame.transform.scale(pygame.transform.rotate(pack.I, 90), (18 * 4, 18))
 
 
 class BlockJ(Block):
     def __init__(self):
         super().__init__()
-        self.position = [4, 0]
-        self.sprite = self.sprite_J
+        self.tiles = [[3, Constants.BOARD_SIZE[1] - 1], [3, Constants.BOARD_SIZE[1] - 2],
+                      [4, Constants.BOARD_SIZE[1] - 2], [5, Constants.BOARD_SIZE[1] - 2]]
+        self.center_index = 2
+        self.sprite = pygame.transform.scale(pack.singleJ, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+        self.type = Constants.J
 
     def get_self(self):
         if self:
             return BlockJ()
 
-    def get_sprite_for_frame(self):
-        return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
-
-    def rotate(self):
-        if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
-            self.position[0] -= 1
-        self.status += 1
-        self.status = self.status % 4
-        self.check_rotation()
-
-    def move_right(self):
-        if self.status in (0, 2) and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
-            return
-        elif self.status in (1, 3) and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
-            return
-        if game.board.check_right(self.position, self.get_right_pattern()):
-            self.position[0] += 1
-        self.audio_move.set_volume(settings.AUDIO_VOLUME)
-        self.audio_move.play()
-
-    def get_right_pattern(self):
-        if self.status == 0:
-            return [1, 3]
-        elif self.status == 1:
-            return [2, 2, 2]
-        elif self.status == 2:
-            return [3, 3]
-        elif self.status == 3:
-            return [2, 1, 1]
-
-    def get_left_pattern(self):
-        if self.status == 0:
-            return [0, 0]
-        elif self.status == 1:
-            return [-1, -1, 0]
-        elif self.status == 2:
-            return [0, -2]
-        elif self.status == 3:
-            return [0, 0, 0]
-
-    def get_sprite(self):
-        if self.status == 0:
-            return self.sprite.image
-        elif self.status == 1:
-            return pygame.transform.rotate(self.sprite.image, 90)
-        elif self.status == 2:
-            return pygame.transform.rotate(self.sprite.image, 180)
-        elif self.status == 3:
-            return pygame.transform.rotate(self.sprite.image, 270)
-
-    def check_bottom(self):
-        if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
-            return False
-        if game.board.check_under(self.position, self.get_under()):
-            return True
-        return False
-
-    def get_height(self):
-        if self.status in (0, 2):
-            return 2
-        elif self.status in (1, 3):
-            return 3
-
-    def get_under(self):
-        if self.status == 0:
-            return [2, 2, 2]
-        elif self.status == 1:
-            return [3, 3]
-        elif self.status == 2:
-            return [1, 1, 2]
-        elif self.status == 3:
-            return [3, 1]
-
-    def get_pattern(self):
-        if self.status == 0:
-            return [[Constants.J, -1, -1],
-                    [Constants.J, Constants.J, Constants.J]]
-        elif self.status == 1:
-            return [[-1, Constants.J],
-                    [-1, Constants.J],
-                    [Constants.J, Constants.J]]
-        elif self.status == 2:
-            return [[Constants.J, Constants.J, Constants.J],
-                    [-1, -1, Constants.J]]
-        elif self.status == 3:
-            return [[Constants.J, Constants.J],
-                    [Constants.J, -1],
-                    [Constants.J, -1]]
+    @staticmethod
+    def get_sprite_for_frame():
+        return pygame.transform.scale(pack.J, (18 * 3, 18 * 2))
 
 
 class BlockL(Block):
     def __init__(self):
         super().__init__()
-        self.position = [4, 0]
-        self.sprite = self.sprite_L
+        self.tiles = [[5, Constants.BOARD_SIZE[1] - 1], [3, Constants.BOARD_SIZE[1] - 2],
+                      [4, Constants.BOARD_SIZE[1] - 2], [5, Constants.BOARD_SIZE[1] - 2]]
+        self.center_index = 2
+        self.sprite = pygame.transform.scale(pack.singleL, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+        self.type = Constants.L
 
     def get_self(self):
         if self:
             return BlockL()
 
-    def get_sprite_for_frame(self):
-        return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
-
-    def rotate(self):
-        if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
-            self.position[0] -= 1
-        self.status += 1
-        self.status = self.status % 4
-        self.check_rotation()
-
-    def move_right(self):
-        if self.status in (0, 2) and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
-            return
-        elif self.status in (1, 3) and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
-            return
-        if game.board.check_right(self.position, self.get_right_pattern()):
-            self.position[0] += 1
-        self.audio_move.set_volume(settings.AUDIO_VOLUME)
-        self.audio_move.play()
-
-    def get_right_pattern(self):
-        if self.status == 0:
-            return [3, 3]
-        elif self.status == 1:
-            return [2, 2, 2]
-        elif self.status == 2:
-            return [3, 1]
-        elif self.status == 3:
-            return [1, 1, 2]
-
-    def get_left_pattern(self):
-        if self.status == 0:
-            return [-2, 0]
-        elif self.status == 1:
-            return [0, -1, -1]
-        elif self.status == 2:
-            return [0, 0]
-        elif self.status == 3:
-            return [0, 0, 0]
-
-    def get_sprite(self):
-        if self.status == 0:
-            return self.sprite.image
-        elif self.status == 1:
-            return pygame.transform.rotate(self.sprite.image, 90)
-        elif self.status == 2:
-            return pygame.transform.rotate(self.sprite.image, 180)
-        elif self.status == 3:
-            return pygame.transform.rotate(self.sprite.image, 270)
-
-    def check_bottom(self):
-        if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
-            return False
-        if game.board.check_under(self.position, self.get_under()):
-            return True
-        return False
-
-    def get_height(self):
-        if self.status in (0, 2):
-            return 2
-        elif self.status in (1, 3):
-            return 3
-
-    def get_under(self):
-        if self.status == 0:
-            return [2, 2, 2]
-        elif self.status == 1:
-            return [1, 3]
-        elif self.status == 2:
-            return [2, 1, 1]
-        elif self.status == 3:
-            return [3, 3]
-
-    def get_pattern(self):
-        if self.status == 0:
-            return [[-1, -1, Constants.L],
-                    [Constants.L, Constants.L, Constants.L]]
-        elif self.status == 1:
-            return [[Constants.L, Constants.L],
-                    [-1, Constants.L],
-                    [-1, Constants.L]]
-        elif self.status == 2:
-            return [[Constants.L, Constants.L, Constants.L],
-                    [Constants.L, -1, -1]]
-        elif self.status == 3:
-            return [[Constants.L, -1],
-                    [Constants.L, -1],
-                    [Constants.L, Constants.L]]
+    @staticmethod
+    def get_sprite_for_frame():
+        return pygame.transform.scale(pack.L, (18 * 3, 18 * 2))
 
 
 class BlockO(Block):
     def __init__(self):
         super().__init__()
-        self.position = [5, 0]
-        self.sprite = self.sprite_O
+        self.tiles = [[4, Constants.BOARD_SIZE[1] - 1], [5, Constants.BOARD_SIZE[1] - 1],
+                      [4, Constants.BOARD_SIZE[1] - 2], [5, Constants.BOARD_SIZE[1] - 2]]
+        self.center_index = 2
+        self.sprite = pygame.transform.scale(pack.singleO, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+        self.type = Constants.O
+        self.offset_data = (
+            ((0, 0),),
+            ((0, -1),),
+            ((-1, -1),),
+            ((-1, 0),),
+        )
 
     def get_self(self):
         if self:
             return BlockO()
 
-    def get_sprite_for_frame(self):
-        return pygame.transform.scale(self.get_sprite(), (18 * 2, 18 * 2))
-
-    def rotate(self):
-        self.audio_rotate.set_volume(settings.AUDIO_VOLUME)
-        self.audio_rotate.play()
-
-    def move_right(self):
-        if self.position[0] < Constants.BOARD_SIZE[0] - 2 and game.board.check_right(self.position,
-                                                                                     self.get_right_pattern()):
-            self.position[0] += 1
-        self.audio_move.set_volume(settings.AUDIO_VOLUME)
-        self.audio_move.play()
-
-    def get_right_pattern(self):
-        if self.status == 0:
-            return [2, 2]
-
-    def get_left_pattern(self):
-        if self.status == 0:
-            return [0, 0]
-
-    def get_sprite(self):
-        if self.status == 0:
-            return self.sprite.image
-
-    def check_bottom(self):
-        length = 2
-        height = 2
-        if self.position[1] >= Constants.BOARD_SIZE[1] - height:
-            return False
-        if sum(game.board.get_line(self.position, length, height)) == 0:
-            return True
-        return False
-
-    def get_pattern(self):
-        return [[Constants.O, Constants.O],
-                [Constants.O, Constants.O]]
-
-    def get_under(self):
-        if self.status == 0:
-            return [2, 2]
+    @staticmethod
+    def get_sprite_for_frame():
+        return pygame.transform.scale(pack.O, (18 * 2, 18 * 2))
 
 
 class BlockS(Block):
     def __init__(self):
         super().__init__()
-        self.position = [4, 0]
-        self.sprite = self.sprite_S
+        self.tiles = [[4, Constants.BOARD_SIZE[1] - 1], [5, Constants.BOARD_SIZE[1] - 1],
+                      [3, Constants.BOARD_SIZE[1] - 2], [4, Constants.BOARD_SIZE[1] - 2]]
+        self.center_index = 3
+        self.sprite = pygame.transform.scale(pack.singleS, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+        self.type = Constants.S
 
     def get_self(self):
         if self:
             return BlockS()
 
-    def get_sprite_for_frame(self):
-        return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
-
-    def rotate(self):
-        if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
-            self.position[0] -= 1
-        self.status += 1
-        self.status = self.status % 2
-        self.check_rotation()
-
-    def move_right(self):
-        if self.status == 0 and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
-            return
-        elif self.status == 1 and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
-            return
-        if game.board.check_right(self.position, self.get_right_pattern()):
-            self.position[0] += 1
-        self.audio_move.set_volume(settings.AUDIO_VOLUME)
-        self.audio_move.play()
-
-    def get_right_pattern(self):
-        if self.status == 0:
-            return [3, 2]
-        elif self.status == 1:
-            return [1, 2, 2]
-
-    def get_left_pattern(self):
-        if self.status == 0:
-            return [-1, 0]
-        elif self.status == 1:
-            return [0, 0, -1]
-
-    def get_sprite(self):
-        if self.status == 0:
-            return self.sprite.image
-        elif self.status == 1:
-            return pygame.transform.rotate(self.sprite.image, 90)
-
-    def check_bottom(self):
-        if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
-            return False
-        if game.board.check_under(self.position, self.get_under()):
-            return True
-        return False
-
-    def get_height(self):
-        if self.status == 0:
-            return 2
-        elif self.status == 1:
-            return 3
-
-    def get_under(self):
-        if self.status == 0:
-            return [2, 2, 1]
-        elif self.status == 1:
-            return [2, 3]
-
-    def get_pattern(self):
-        if self.status == 0:
-            return [[-1, Constants.S, Constants.S],
-                    [Constants.S, Constants.S, -1]]
-        elif self.status == 1:
-            return [[Constants.S, -1],
-                    [Constants.S, Constants.S],
-                    [-1, Constants.S]]
+    @staticmethod
+    def get_sprite_for_frame():
+        return pygame.transform.scale(pack.S, (18 * 3, 18 * 2))
 
 
 class BlockT(Block):
     def __init__(self):
         super().__init__()
-        self.position = [4, 0]
-        self.sprite = self.sprite_T
+        self.tiles = [[4, Constants.BOARD_SIZE[1] - 1], [5, Constants.BOARD_SIZE[1] - 2],
+                      [3, Constants.BOARD_SIZE[1] - 2], [4, Constants.BOARD_SIZE[1] - 2]]
+        self.center_index = 3
+        self.sprite = pygame.transform.scale(pack.singleT, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+        self.type = Constants.T
 
     def get_self(self):
         if self:
             return BlockT()
 
-    def get_sprite_for_frame(self):
-        return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
-
-    def rotate(self):
-        if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
-            self.position[0] -= 1
-        self.status += 1
-        self.status = self.status % 4
-        self.check_rotation()
-
-    def move_right(self):
-        if self.status in (0, 2) and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
-            return
-        elif self.status in (1, 3) and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
-            return
-        if game.board.check_right(self.position, self.get_right_pattern()):
-            self.position[0] += 1
-
-        self.audio_move.set_volume(settings.AUDIO_VOLUME)
-        self.audio_move.play()
-
-    def get_right_pattern(self):
-        if self.status == 0:
-            return [2, 3]
-        elif self.status == 1:
-            return [2, 2, 2]
-        elif self.status == 2:
-            return [3, 2]
-        elif self.status == 3:
-            return [1, 2, 1]
-
-    def get_left_pattern(self):
-        if self.status == 0:
-            return [-1, 0]
-        elif self.status == 1:
-            return [-1, 0, -1]
-        elif self.status == 2:
-            return [0, -1]
-        elif self.status == 3:
-            return [0, 0, 0]
-
-    def get_sprite(self):
-        if self.status == 0:
-            return self.sprite.image
-        elif self.status == 1:
-            return pygame.transform.rotate(self.sprite.image, 90)
-        elif self.status == 2:
-            return pygame.transform.rotate(self.sprite.image, 180)
-        elif self.status == 3:
-            return pygame.transform.rotate(self.sprite.image, 270)
-
-    def check_bottom(self):
-        if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
-            return False
-        if game.board.check_under(self.position, self.get_under()):
-            return True
-        return False
-
-    def get_height(self):
-        if self.status in (0, 2):
-            return 2
-        elif self.status in (1, 3):
-            return 3
-
-    def get_under(self):
-        if self.status == 0:
-            return [2, 2, 2]
-        elif self.status == 1:
-            return [2, 3]
-        elif self.status == 2:
-            return [1, 2, 1]
-        elif self.status == 3:
-            return [3, 2]
-
-    def get_pattern(self):
-        if self.status == 0:
-            return [[-1, Constants.T, -1],
-                    [Constants.T, Constants.T, Constants.T]]
-        elif self.status == 1:
-            return [[-1, Constants.T],
-                    [Constants.T, Constants.T],
-                    [-1, Constants.T]]
-        elif self.status == 2:
-            return [[Constants.T, Constants.T, Constants.T],
-                    [-1, Constants.T, -1]]
-        elif self.status == 3:
-            return [[Constants.T, -1],
-                    [Constants.T, Constants.T],
-                    [Constants.T, -1]]
+    @staticmethod
+    def get_sprite_for_frame():
+        return pygame.transform.scale(pack.T, (18 * 3, 18 * 2))
 
 
 class BlockZ(Block):
     def __init__(self):
         super().__init__()
-        self.position = [4, 0]
-        self.sprite = self.sprite_Z
+        self.tiles = [[3, Constants.BOARD_SIZE[1] - 1], [4, Constants.BOARD_SIZE[1] - 1],
+                      [4, Constants.BOARD_SIZE[1] - 2], [5, Constants.BOARD_SIZE[1] - 2]]
+        self.center_index = 2
+        self.sprite = pygame.transform.scale(pack.singleZ, (Constants.SIDE_LENGTH, Constants.SIDE_LENGTH))
+        self.type = Constants.Z
 
     def get_self(self):
         if self:
             return BlockZ()
 
-    def get_sprite_for_frame(self):
-        return pygame.transform.scale(self.get_sprite(), (18 * 3, 18 * 2))
-
-    def rotate(self):
-        if self.position[0] >= Constants.BOARD_SIZE[0] - 2:
-            self.position[0] -= 1
-        self.status += 1
-        self.status = self.status % 2
-        self.check_rotation()
-
-    def move_right(self):
-        if self.status == 0 and self.position[0] >= Constants.BOARD_SIZE[0] - 3:
-            return
-        elif self.status == 1 and self.position[0] >= Constants.BOARD_SIZE[0] - 2:
-            return
-        if game.board.check_right(self.position, self.get_right_pattern()):
-            self.position[0] += 1
-        self.audio_move.set_volume(settings.AUDIO_VOLUME)
-        self.audio_move.play()
-
-    def get_right_pattern(self):
-        if self.status == 0:
-            return [2, 3]
-        elif self.status == 1:
-            return [2, 2, 1]
-
-    def get_left_pattern(self):
-        if self.status == 0:
-            return [0, -1]
-        elif self.status == 1:
-            return [-1, 0, 0]
-
-    def get_sprite(self):
-        if self.status == 0:
-            return self.sprite.image
-        elif self.status == 1:
-            return pygame.transform.rotate(self.sprite.image, 90)
-
-    def check_bottom(self):
-        if self.position[1] + self.get_height() == Constants.BOARD_SIZE[1]:
-            return False
-        if game.board.check_under(self.position, self.get_under()):
-            return True
-        return False
-
-    def get_height(self):
-        if self.status == 0:
-            return 2
-        elif self.status == 1:
-            return 3
-
-    def get_under(self):
-        if self.status == 0:
-            return [1, 2, 2]
-        elif self.status == 1:
-            return [3, 2]
-
-    def get_pattern(self):
-        if self.status == 0:
-            return [[Constants.Z, Constants.Z, -1],
-                    [-1, Constants.Z, Constants.Z]]
-        elif self.status == 1:
-            return [[-1, Constants.Z],
-                    [Constants.Z, Constants.Z],
-                    [Constants.Z, -1]]
+    @staticmethod
+    def get_sprite_for_frame():
+        return pygame.transform.scale(pack.Z, (18 * 3, 18 * 2))
 
 
 class CurrentBlock:
@@ -1041,12 +609,11 @@ class CurrentBlock:
             elif self.move_left:
                 self.block.move_left()
             elif self.move_down:
-                if self.block.position[1] + len(self.block.get_pattern()) < Constants.BOARD_SIZE[1] \
-                        and self.block.check_bottom():
+                if not self.block.touched_the_ground:
                     game.add_score(1)
-                    self.block.fall()
-                    self.audio_fall.set_volume(settings.AUDIO_VOLUME)
-                    self.audio_fall.play()
+                self.block.fall()
+                self.audio_fall.set_volume(settings.AUDIO_VOLUME)
+                self.audio_fall.play()
 
     def set_block(self, block):
         self.block = block
@@ -1562,13 +1129,11 @@ class LevelSelection:
 class HardDropParticle(pygame.sprite.Sprite):
     image = pygame.image.load('res/beam.png').convert_alpha()
 
-    def __init__(self, pos, length, height):
+    def __init__(self, rect):
+        print(rect)
         super().__init__(particles)
-        self.image = pygame.transform.scale(self.image,
-                                            (Constants.SIDE_LENGTH * length, (pos[1] + height) * Constants.SIDE_LENGTH))
-        self.rect = pygame.rect.Rect((Constants.BOARD_TOPLEFT[0] + pos[0] * Constants.SIDE_LENGTH,
-                                      Constants.BOARD_TOPLEFT[1]),
-                                     (Constants.SIDE_LENGTH * length, (pos[1] + height) * Constants.SIDE_LENGTH))
+        self.rect = rect
+        self.image = pygame.transform.scale(self.image, (self.rect.width, self.rect.height))
         self.start_time = pygame.time.get_ticks()
 
     def get_current_time(self):
@@ -3284,7 +2849,6 @@ class Profile:
     def render(self):
         screen.blit(self.background_surface, self.background_rect)
         pygame.draw.rect(screen, 'white', self.background_rect, 1)
-        # screen.blit(self.profile_title_surface, self.profile_title_rect)
         screen.blit(self.nickname_surface, self.nickname_rect)
 
         screen.blit(self.games_played_surface, self.games_played_rect)
@@ -3695,7 +3259,7 @@ while True:
 
     elif program_state == Constants.INGAME:
         if game is None:
-            game = GarbageTraining(10)
+            game = Marathon(1)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 if game.mode == Constants.MARATHON:
@@ -3708,47 +3272,40 @@ while True:
                     except Exception as e:
                         print(e)
                 terminate()
-            elif event.type == pygame.KEYDOWN:
-                try:
-                    if event.key == settings.MOVE_LEFT_BUTTON:
-                        game.current_block.move_left = True
-                    elif event.key == settings.MOVE_RIGHT_BUTTON:
-                        game.current_block.move_right = True
-                    elif event.key == settings.ROTATE_LEFT_BUTTON:
-                        game.current_block.block.rotate()
-                    elif event.key == settings.HARD_DROP_BUTTON:
-                        hard_drop_particle = HardDropParticle(*game.current_block.block.hard_drop(True))
-                    elif event.key == settings.SOFT_DROP_BUTTON:
-                        game.current_block.move_down = True
-                    elif event.key == settings.HOLD_BLOCK_BUTTON and game.may_hold():
-                        game.block_queue.hold()
-                except AttributeError:
-                    print('[GAME] 4 - AttributeError')
-            elif event.type == pygame.KEYUP:
-                try:
-                    if event.key == settings.MOVE_LEFT_BUTTON:
-                        game.current_block.move_left = False
-                    elif event.key == settings.MOVE_RIGHT_BUTTON:
-                        game.current_block.move_right = False
-                    elif event.key == settings.SOFT_DROP_BUTTON:
-                        game.current_block.move_down = False
-                    elif event.key == settings.PAUSE_BUTTON:
-                        game.toggle_pause()
-                except AttributeError:
-                    print('[GAME] 2 - AttributeError')
-            elif event.type == FALL_BLOCK_EVENT and not game.gameover and not game.paused:
-                try:
-                    game.current_block.block.fall()
-                except AttributeError:
-                    print('[GAME] 3 - AttributeError')
+            elif event.type == pygame.KEYDOWN and game.current_block.block:
+                if event.key == settings.MOVE_LEFT_BUTTON:
+                    game.current_block.move_left = True
+                elif event.key == settings.MOVE_RIGHT_BUTTON:
+                    game.current_block.move_right = True
+                elif event.key == settings.ROTATE_LEFT_BUTTON:
+                    game.current_block.block.rotate_left()
+                elif event.key == settings.ROTATE_RIGHT_BUTTON:
+                    game.current_block.block.rotate_right()
+                elif event.key == settings.HARD_DROP_BUTTON:
+                    hard_drop_particle = HardDropParticle(game.current_block.block.hard_drop())
+                elif event.key == settings.SOFT_DROP_BUTTON:
+                    game.current_block.move_down = True
+                elif event.key == settings.HOLD_BLOCK_BUTTON and game.may_hold():
+                    game.block_queue.hold()
+            elif event.type == pygame.KEYUP and game.current_block.block:
+                if event.key == settings.MOVE_LEFT_BUTTON:
+                    game.current_block.move_left = False
+                elif event.key == settings.MOVE_RIGHT_BUTTON:
+                    game.current_block.move_right = False
+                elif event.key == settings.SOFT_DROP_BUTTON:
+                    game.current_block.move_down = False
+                elif event.key == settings.PAUSE_BUTTON:
+                    game.toggle_pause()
+            elif event.type == FALL_BLOCK_EVENT and not game.gameover and not game.paused and game.current_block.block:
+                game.current_block.block.fall()
 
         if game.is_countdown():
             game.countdown()
         elif game is not None:
             if not game.gameover:
-                if game.BLOCK_ANCHOR.is_time():
-                    if game.current_block.block.timer_set:
-                        game.current_block.block.hard_drop(False)
+                if game.current_block.block and game.current_block.block.touched_the_ground and \
+                        (game.BLOCK_ANCHOR.is_time() or game.current_block.block.moves_left <= 0):
+                    game.current_block.block.hard_drop(False)
                 game.render_and_update()
             else:
                 gameover = EndGameScreen()
