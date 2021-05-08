@@ -1,4 +1,5 @@
 import hashlib
+import multiprocessing
 import random
 import sys
 import pygame
@@ -635,25 +636,30 @@ class CurrentBlock:
         self.move_left = False
         self.move_down = False
 
-        self.counter = 0
+        self.DAS = 0
 
     def get_type(self):
         return self.block.get_self()
 
     def update(self):
-        self.counter += 1
-        self.counter %= 2
-        if self.counter == 0:
-            if self.move_right:
+        if self.move_right:
+            self.DAS += 1
+            if self.DAS == 1 or self.DAS == 6:
                 self.block.move_right()
-            elif self.move_left:
+            if self.DAS == 6:
+                self.DAS = 5
+        elif self.move_left:
+            self.DAS += 1
+            if self.DAS == 1 or self.DAS == 6:
                 self.block.move_left()
-            elif self.move_down:
-                if not self.block.touched_the_ground:
-                    game.add_score(1)
-                self.block.fall()
-                self.audio_fall.set_volume(settings.AUDIO_VOLUME)
-                self.audio_fall.play()
+            if self.DAS == 6:
+                self.DAS = 5
+        elif self.move_down:
+            if not self.block.touched_the_ground:
+                game.add_score(1)
+            self.block.fall()
+            self.audio_fall.set_volume(settings.AUDIO_VOLUME)
+            self.audio_fall.play()
 
     def set_block(self, block):
         self.block = block
@@ -1334,6 +1340,10 @@ class EndGameScreen:
         self.fadeout_start_time = None
         self.FADEOUT_TIME = 2000
 
+        self.update_database(time)
+
+    @staticmethod
+    def update_database(time):
         user.add_playtime(time)
         user.add_blocks_dropped(game.blocks)
         user.add_tetrises(game.tetrises)
@@ -3197,7 +3207,7 @@ while connecting_to_db:
 
 background = Background()
 start_screen = StartScreen()
-program_state = Constants.START_SCREEN
+program_state = Constants.INGAME # Constants.START_SCREEN
 level_selection, game, menu, gameover, settings, authorisation, user = None, None, None, None, Settings(), None, None
 game_mode_selection, profile, shop = None, None, None
 particles = pygame.sprite.Group()
@@ -3330,9 +3340,13 @@ while True:
                     game.block_queue.hold()
             elif event.type == pygame.KEYUP and game.current_block.block:
                 if event.key == settings.MOVE_LEFT_BUTTON:
+                    print('KEY UP')
                     game.current_block.move_left = False
+                    game.current_block.DAS = 0
                 elif event.key == settings.MOVE_RIGHT_BUTTON:
+                    print('KEY UP')
                     game.current_block.move_right = False
+                    game.current_block.DAS = 0
                 elif event.key == settings.SOFT_DROP_BUTTON:
                     game.current_block.move_down = False
                 elif event.key == settings.PAUSE_BUTTON:
