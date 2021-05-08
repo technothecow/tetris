@@ -176,38 +176,95 @@ class Board:
         game.blocks += 1
         for tile in tiles:
             self.board[tile[1]][tile[0]] = piece_type
-        self.check_lines()
+        if not self.check_lines():
+            game.is_combo = False
+            game.combo = 0
 
     def check_lines(self):
+        # calculating lines to delete
         lines = list()
-        trash_lines = list()
+        garbage_lines = list()
         for i in range(len(self.board)):
             if 0 not in self.board[i]:
                 if Constants.GARBAGE in self.board[i]:
-                    trash_lines.append(i)
+                    garbage_lines.append(i)
                 else:
                     lines.append(i)
+        total_lines = lines.copy() + garbage_lines.copy()
 
-        if game.current_block.block.type == Constants.T:
-            if Constants.Events.TSPIN in game.current_block.block.events:
-                if len(lines) > 0:
-                    game.tspins += 1
-                    game.current_block.block.audio_tspin.play()
-                    if len(lines) == 1:
-                        print('T-SPIN SINGLE')
-                    elif len(lines) == 2:
-                        print('T-SPIN DOUBLE')
-                    elif len(lines) == 3:
-                        print('T-SPIN TRIPLE')
+        # audio effects for clearance
+        if len(total_lines) == 0:
+            return False
+        elif len(total_lines) == 1:
+            self.audio_single.set_volume(settings.AUDIO_VOLUME)
+            self.audio_single.play()
+            game.singles += 1
+        elif len(total_lines) == 2:
+            self.audio_double.set_volume(settings.AUDIO_VOLUME)
+            self.audio_double.play()
+            game.doubles += 1
+        elif len(total_lines) == 3:
+            self.audio_triple.set_volume(settings.AUDIO_VOLUME)
+            self.audio_triple.play()
+            game.triples += 1
+        elif len(total_lines) == 4:
+            self.audio_tetris.set_volume(settings.AUDIO_VOLUME)
+            self.audio_tetris.play()
+            game.tetrises += 1
 
-        self.destroy_lines(lines)
-        self.destroy_trash_lines(trash_lines)
+        # deleting lines from board itself
+        self.destroy_lines(total_lines)
 
-    def destroy_trash_lines(self, trash_lines):
-        for line in trash_lines:
-            for i in range(line, Constants.BOARD_SIZE[1]):
-                self.board[i] = self.board[i + 1].copy()
-                game.add_garbage_line()
+        # adding lines to stats
+        game.add_cleared_lines(len(lines))
+        game.add_garbage_lines(len(garbage_lines))
+
+        # counting score
+
+        # for combo
+        game.is_combo = True
+        game.combo += 1
+        print('[GAME] Combo counter:', game.combo)
+        game.add_score((game.combo - 1) * game.current_level + 50 * game.current_level)
+
+        # for t-spins
+        if game.current_block.block.type == Constants.T and Constants.Events.TSPIN in game.current_block.block.events:
+            if len(lines) == 1:
+                print('TSPIN SINGLE')
+                game.add_score(800 * game.current_level)
+                if game.back_to_back_counter > 0:
+                    game.add_score(400 * game.current_level)
+            elif len(lines) == 2:
+                print('TSPIN DOUBLE')
+                game.add_score(1200 * game.current_level)
+                if game.back_to_back_counter > 0:
+                    game.add_score(600 * game.current_level)
+            elif len(lines) == 3:
+                print('TSPIN TRIPLE')
+                game.add_score(1600 * game.current_level)
+                if game.back_to_back_counter > 0:
+                    game.add_score(800 * game.current_level)
+            game.back_to_back_counter += 1
+            return True
+
+        # for tetris
+        if len(lines) == 4:
+            if game.back_to_back_counter > 0:
+                game.add_score(400 * game.current_level)
+            game.add_score(800 * game.current_level)
+            game.back_to_back_counter += 1
+            return True
+
+        # for other
+        if len(lines) == 1:
+            game.add_score(100 * game.current_level)
+        elif len(lines) == 2:
+            game.add_score(300 * game.current_level)
+        elif len(lines) == 3:
+            game.add_score(500 * game.current_level)
+
+        game.back_to_back_counter = 0
+        return True
 
     def add_garbage_line(self, empty_slot):
         garbage_line = [0 if i == empty_slot else Constants.GARBAGE for i in range(Constants.BOARD_SIZE[0])].copy()
@@ -216,40 +273,10 @@ class Board:
         self.board[0] = garbage_line.copy()
 
     def destroy_lines(self, lines):
-        if len(lines) == 0:
-            return
-        elif len(lines) == 1:
-            self.audio_single.set_volume(settings.AUDIO_VOLUME)
-            self.audio_single.play()
-            game.singles += 1
-        elif len(lines) == 2:
-            self.audio_double.set_volume(settings.AUDIO_VOLUME)
-            self.audio_double.play()
-            game.doubles += 1
-        elif len(lines) == 3:
-            self.audio_triple.set_volume(settings.AUDIO_VOLUME)
-            self.audio_triple.play()
-            game.triples += 1
-        elif len(lines) == 4:
-            self.audio_tetris.set_volume(settings.AUDIO_VOLUME)
-            self.audio_tetris.play()
-            game.tetrises += 1
-
         lines.reverse()
         for line in lines:
             for i in range(line, Constants.BOARD_SIZE[1] - 1):
                 self.board[i] = self.board[i + 1].copy()
-
-        if len(lines) == 1:
-            game.add_score(40 * (game.current_level + 1))
-        elif len(lines) == 2:
-            game.add_score(100 * (game.current_level + 1))
-        elif len(lines) == 3:
-            game.add_score(300 * (game.current_level + 1))
-        elif len(lines) == 4:
-            game.add_score(1200 * (game.current_level + 1))
-
-        game.add_cleared_lines(len(lines))
 
     def check_lose(self):
         if len(set(self.board[-1])) != 1:
@@ -393,9 +420,9 @@ class Block:
                     cube_over_left = (offset_tiles[1][0], offset_tiles[1][1] + 1)
                     cube_over_right = (offset_tiles[2][0], offset_tiles[2][1] + 1)
                     if (not game.board.check_collision((cube_under_left,)) and \
-                            not game.board.check_collision((cube_under_right,)) \
-                            and (not game.board.check_collision((cube_over_left,)) or
-                                 not game.board.check_collision((cube_over_right,))) and self.rotation_index in (1, 3))\
+                        not game.board.check_collision((cube_under_right,)) \
+                        and (not game.board.check_collision((cube_over_left,)) or
+                             not game.board.check_collision((cube_over_right,))) and self.rotation_index in (1, 3)) \
                             or offset in ((-1, -2), (1, -2)) and self.rotation_index == 0:
                         self.events.add(Constants.Events.TSPIN)
                 self.audio_rotate.play()
@@ -429,7 +456,6 @@ class Block:
             self.touched_the_ground = True
             game.BLOCK_ANCHOR.start(500)
             self.moves_left = 15
-            print('[BLOCK] Touch detected')
 
     def hard_drop(self, is_lock: bool = True):
         while game.board.check_collision(self.move_tiles_vertically(self.get_tiles_copy(self.tiles), -1)):
@@ -637,7 +663,7 @@ class Game:
 
         pygame.mixer.music.stop()
 
-        self.score, self.combo = 0, 0
+        self.score, self.combo, self.is_combo = 0, 0, False
         self.singles, self.doubles, self.triples, self.tetrises, self.blocks = 0, 0, 0, 0, 0
         self.max_combo, self.lines_cleared, self.lines_cleared_from_last_level, self.tspins = 0, 0, 0, 0
 
@@ -663,7 +689,9 @@ class Game:
 
         self.current_level = 1
 
-    def add_garbage_line(self):
+        self.back_to_back_counter = 0
+
+    def add_garbage_lines(self, lines):
         pass
 
     def toggle_pause(self):
@@ -956,8 +984,8 @@ class GarbageTraining(Game):
     def get_lines_left(self):
         return self.lines - self.garbage_lines_cleared
 
-    def add_garbage_line(self):
-        self.garbage_lines_cleared += 1
+    def add_garbage_lines(self, lines):
+        self.garbage_lines_cleared += lines
         if self.get_lines_left() >= 10:
             self.board.add_garbage_line(random.randint(0, Constants.BOARD_SIZE[0] - 1))
         self.lines_left_surface = self.stats_font.render('Lines left: ' + str(self.get_lines_left()),
@@ -1130,7 +1158,6 @@ class HardDropParticle(pygame.sprite.Sprite):
     image = pygame.image.load('res/beam.png').convert_alpha()
 
     def __init__(self, rect):
-        print(rect)
         super().__init__(particles)
         self.rect = rect
         self.image = pygame.transform.scale(self.image, (self.rect.width, self.rect.height))
@@ -2545,7 +2572,7 @@ class GameModeSelection:
             except fernet.InvalidToken:
                 self.render_marathon()
             except Exception as error:
-                print(error)
+                print('[ERROR] While loading last game:', repr(e))
                 try:
                     os.remove('last_game')
                 except FileNotFoundError:
@@ -3150,7 +3177,7 @@ while connecting_to_db:
                             password=Constants.Database.PASSWORD,
                             host=Constants.Database.HOST)
     except mysql.connector.errors.DatabaseError as e:
-        print(e)
+        print('[ERROR] While connecting to database:', repr(e))
     else:
         connecting_to_db = False
 
@@ -3270,7 +3297,7 @@ while True:
                             writer.write(Constants.FERNET.encrypt(
                                 f'{game.score} {game.get_current_time()} {game.current_level}'.encode()))
                     except Exception as e:
-                        print(e)
+                        print('[ERROR] While saving last game:', repr(e))
                 terminate()
             elif event.type == pygame.KEYDOWN and game.current_block.block:
                 if event.key == settings.MOVE_LEFT_BUTTON:
