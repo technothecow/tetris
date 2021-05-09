@@ -1,5 +1,4 @@
 import hashlib
-import multiprocessing
 import random
 import sys
 import pygame
@@ -228,6 +227,9 @@ class Board:
         # all clear checking
         if len({len(set(i)) for i in self.board.copy()}) == 1:
             print('[BOARD] ALL CLEAR')
+            EventText((game.board.topleft_x + game.board.side_length * Constants.BOARD_SIZE[0] // 2,
+                       game.board.topleft_y + game.board.side_length * Constants.BOARD_SIZE[1] // 3), 'ALL CLEAR',
+                      40, 5000)
             self.audio_all_clear.play()
             game.add_score(2000 * game.current_level)
 
@@ -236,32 +238,67 @@ class Board:
         game.combo += 1
         print('[GAME] Combo counter:', game.combo)
         game.add_score((game.combo - 1) * game.current_level + 50 * game.current_level)
-        print('[GAME] B-T-B counter:', game.back_to_back_counter)
+        print('[GAME] BTB counter:', game.back_to_back_counter)
+        if game.combo > 1:
+            EventText((game.board.topleft_x + game.board.side_length * Constants.BOARD_SIZE[0] // 2,
+                       game.board.topleft_y + game.board.side_length * Constants.BOARD_SIZE[1] // 6),
+                      f'COMBO x{game.combo}', 30, 1000)
 
         # for t-spins
         if game.current_block.block.type == Constants.T and Constants.Events.TSPIN in game.current_block.block.events:
+            game.current_block.block.audio_tspin.play()
             if len(lines) == 1:
                 print('[BOARD] TSPIN SINGLE')
+
+                EventText((game.board.topleft_x + game.board.side_length * Constants.BOARD_SIZE[0] // 2,
+                           game.board.topleft_y + game.board.side_length * Constants.BOARD_SIZE[1] // 5),
+                          'T-SPIN SINGLE', 30, 3000)
+
                 game.add_score(800 * game.current_level)
                 if game.back_to_back_counter > 0:
                     game.add_score(400 * game.current_level)
+
             elif len(lines) == 2:
                 print('[BOARD] TSPIN DOUBLE')
+
+                EventText((game.board.topleft_x + game.board.side_length * Constants.BOARD_SIZE[0] // 2,
+                           game.board.topleft_y + game.board.side_length * Constants.BOARD_SIZE[1] // 5),
+                          'T-SPIN DOUBLE', 30, 3000)
+
                 game.add_score(1200 * game.current_level)
                 if game.back_to_back_counter > 0:
                     game.add_score(600 * game.current_level)
+
             elif len(lines) == 3:
                 print('[BOARD] TSPIN TRIPLE')
+
+                EventText((game.board.topleft_x + game.board.side_length * Constants.BOARD_SIZE[0] // 2,
+                           game.board.topleft_y + game.board.side_length * Constants.BOARD_SIZE[1] // 5),
+                          'T-SPIN TRIPLE', 30, 3000)
+
                 game.add_score(1600 * game.current_level)
                 if game.back_to_back_counter > 0:
                     game.add_score(800 * game.current_level)
+
+            if game.back_to_back_counter > 0:
+                EventText((game.board.topleft_x + game.board.side_length * Constants.BOARD_SIZE[0] // 2,
+                           game.board.topleft_y + game.board.side_length * Constants.BOARD_SIZE[1] // 4),
+                          f'BACK-TO-BACK x{game.back_to_back_counter}', 30, 3000)
+
             game.back_to_back_counter += 1
             return True
 
         # for tetris
         if len(lines) == 4:
+            EventText((game.board.topleft_x + game.board.side_length * Constants.BOARD_SIZE[0] // 2,
+                       game.board.topleft_y + game.board.side_length * Constants.BOARD_SIZE[1] // 5),
+                      'TETRIS', 40, 3000)
+
             if game.back_to_back_counter > 0:
                 game.add_score(400 * game.current_level)
+                EventText((game.board.topleft_x + game.board.side_length * Constants.BOARD_SIZE[0] // 2,
+                           game.board.topleft_y + game.board.side_length * Constants.BOARD_SIZE[1] // 4),
+                          f'BACK-TO-BACK x{game.back_to_back_counter}', 30, 3000)
             game.add_score(800 * game.current_level)
             game.back_to_back_counter += 1
             return True
@@ -1189,6 +1226,25 @@ class HardDropParticle(pygame.sprite.Sprite):
     def update(self):
         self.image.set_alpha(70 - self.get_current_time() // 5)
         if self.image.get_alpha() == 0:
+            self.kill()
+            del self
+
+
+class EventText(pygame.sprite.Sprite):
+    def __init__(self, center, text, size, time):
+        super().__init__(particles)
+        self.time = pygame.time.get_ticks() + time
+        font = pygame.font.Font('fonts/Orbitron-Bold.ttf', size)
+        self.image = font.render(text, True, (255, 255, 255))
+        self.rect = self.image.get_rect(center=center)
+
+    def check_time(self):
+        return pygame.time.get_ticks() - self.time < 0
+
+    def update(self):
+        if self.check_time():
+            screen.blit(self.image, self.rect)
+        else:
             self.kill()
             del self
 
@@ -3207,7 +3263,7 @@ while connecting_to_db:
 
 background = Background()
 start_screen = StartScreen()
-program_state = Constants.INGAME # Constants.START_SCREEN
+program_state = Constants.START_SCREEN
 level_selection, game, menu, gameover, settings, authorisation, user = None, None, None, None, Settings(), None, None
 game_mode_selection, profile, shop = None, None, None
 particles = pygame.sprite.Group()
@@ -3340,11 +3396,9 @@ while True:
                     game.block_queue.hold()
             elif event.type == pygame.KEYUP and game.current_block.block:
                 if event.key == settings.MOVE_LEFT_BUTTON:
-                    print('KEY UP')
                     game.current_block.move_left = False
                     game.current_block.DAS = 0
                 elif event.key == settings.MOVE_RIGHT_BUTTON:
-                    print('KEY UP')
                     game.current_block.move_right = False
                     game.current_block.DAS = 0
                 elif event.key == settings.SOFT_DROP_BUTTON:
